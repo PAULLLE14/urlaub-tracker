@@ -54,10 +54,16 @@ eine echte 8-Pax-Suche (ueber ``flights_multicity_browser._search_one``).
 B (Blockrisiko): der Split-Check (4-Pax-Suche) laeuft nur noch, wenn
 Preis(8)/8 tatsaechlich deutlich (>5%) ueber dem 1-Pax-Schaetzpreis liegt -
 sonst gibt es vermutlich keinen knappen Bucket, ein Split wuerde ohnehin
-nichts bringen. Zusaetzlich bricht die Kandidaten-Schleife fruehzeitig ab,
-sobald ein bestaetigter Bestpreis feststeht und ein Kandidat mit seiner
-1-Pax-Schaetzung mehr als 15% darueber liegt (der wird realistisch ohnehin
-nicht gewinnen).
+nichts bringen.
+
+14.09.26 (Nutzerkorrektur): ein fruehes Ueberspringen von Kandidaten anhand
+ihrer 1-Pax-Schaetzung (ausprobiert, dann wieder entfernt) war falsch - 1-Pax-
+Preis und 8-Pax-Bucket-Verfuegbarkeit korrelieren nicht zuverlaessig genug,
+um eine Route ungeprueft auszuschliessen (das ist ja der ganze Grund, warum
+dieser Check existiert: eine Route mit mittelmaessigem 1-Pax-Preis kann fuer
+8 Personen trotzdem die guenstigste sein, oder umgekehrt nur noch fuer
+weniger als 8 Personen verfuegbar). JEDE Top-N-Kombination wird immer real
+geprueft, ohne Abkuerzung.
 """
 from __future__ import annotations
 
@@ -77,7 +83,6 @@ SOURCE = "google_flights(playwright-group)"
 _SPLIT_SIZE = 4  # Nutzervorgabe 14.09.26: 2 Familien a 4 Personen, fest.
 _SAME_BUCKET_RATIO = 1.05   # Preis(8)/8 <= Preis(4)/4 * diesen Faktor -> ein Bucket reicht
 _SPLIT_WORTHWHILE_RATIO = 1.05  # Preis(8)/8 muss mehr als 5% ueber der 1-Pax-Schaetzung liegen
-_SKIP_CANDIDATE_RATIO = 1.15    # Kandidat >15% ueber bestaetigtem Bestpreis -> ueberspringen
 
 
 def _key_of(o: FlightOffer) -> tuple:
@@ -129,20 +134,20 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
 
     group_checked = split_checked = 0
     errors: list[str] = []
-    confirmed_best_per_person: float | None = None
 
     for key in rt_keys:
         _trip_type, origin, _destination, s_date, r_date = key
         estimated = rt_best[key]
         label = f"GROUP({t.persons}) {origin} {s_date}/{r_date}"
 
-        if (confirmed_best_per_person is not None
-                and estimated.price_per_person > confirmed_best_per_person * _SKIP_CANDIDATE_RATIO):
-            log.info("%s: uebersprungen (1-Pax-Schaetzung %.0f > %.0f%% des bestaetigten "
-                     "Bestpreises %.0f)", label, estimated.price_per_person,
-                     _SKIP_CANDIDATE_RATIO * 100, confirmed_best_per_person)
-            continue
-
+        # 14.09.26 Nutzerkorrektur: KEIN Ueberspringen mehr anhand der
+        # 1-Pax-Schaetzung, egal wie weit sie ueber dem bisher besten
+        # bestaetigten Preis liegt - 1-Pax-Preis und 8-Pax-Bucket-
+        # Verfuegbarkeit korrelieren nicht zuverlaessig (das ist ja der
+        # ganze Grund, warum dieser Check ueberhaupt existiert: eine Route
+        # kann trotz mittelmaessigem 1-Pax-Preis fuer 8 Personen noch genug
+        # guenstige Sitze frei haben - oder umgekehrt nur noch fuer z.B. 5
+        # Personen verfuegbar sein). JEDE Kombination wird real geprueft.
         group_checked += 1
         card8 = deep8 = None
         try:
@@ -163,9 +168,6 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
                 pax_mode="group", deep_link=deep8,
                 price_total=card8["price"], price_per_person=card8["price"] / t.persons,
             ))
-            per_person8 = card8["price"] / t.persons
-            if confirmed_best_per_person is None or per_person8 < confirmed_best_per_person:
-                confirmed_best_per_person = per_person8
             if card8["price"] > estimated.price_total:
                 reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
                          f"Preis verfuegbar (echter Gruppenpreis ab {card8['price']:.0f} EUR)")

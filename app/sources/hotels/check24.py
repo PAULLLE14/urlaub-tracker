@@ -45,6 +45,25 @@ _ROW = re.compile(
     r"Details zum Angebot von ([^\n]{1,40})\n(?:Zimmer:\s*([^\n]{1,80}))?",
     re.S,
 )
+# CHECK24 markiert EINE Karte oben auf der Seite explizit als "die
+# guenstigste Option zu Ihrer Suche" - live-verifiziert 14.09.26: fuer 1
+# Zimmer/3 Erwachsene zeigte diese Karte 3.610EUR, die lange Liste
+# darunter ("Alle verfuegbaren Zimmer", nach Beliebtheit sortiert, NICHT
+# nach Preis) enthielt aber zusaetzlich mehrere Zeilen um 2.300-2.450EUR,
+# die CHECK24 selbst NICHT als die guenstigste Option fuehrt (vermutlich
+# "Vergleichbare Angebote"/veraltete Cache-Preise, nicht zuverlaessig
+# buchbar). _drop_price_outliers() (Median-basiert) greift hier NICHT,
+# weil diese Zeilen sich untereinander kaum unterscheiden - nur CHECK24s
+# eigene Badge verrrraet, dass sie trotzdem nicht die echte Untergrenze sind.
+_CHEAPEST_BADGE = re.compile(
+    r"Günstigster Preis\s*\nDieses Angebot ist die günstigste Option zu Ihrer Suche\.\s*\n"
+    r"(?P<room>[^\n]{1,60})\s*\n"
+    r".*?Angebot von (?P<supplier>[^\n]{1,40})\s*\n"
+    r"Preis für alle Reisenden\s*\n[^\n]*\n"
+    r"(?:[\d.,]+\s*€\s*\n)?"
+    r"(?P<price>[\d.,]+)\s*€\s*\n\s*buchen",
+    re.S,
+)
 
 
 def _occupancy_param(adults: int) -> str:
@@ -78,7 +97,35 @@ def _parse_rows(text: str, room_hint: str = "") -> list[dict]:
             "room": (m.group(4) or "").strip(),
         })
     out = _filter_room_category(out, room_hint)
-    return _drop_price_outliers(out)
+    out = _drop_price_outliers(out)
+    return _apply_cheapest_badge(out, text)
+
+
+def _apply_cheapest_badge(rows: list[dict], text: str) -> list[dict]:
+    """Verwirft Zeilen, deren Preis UNTER CHECK24s eigener "Guenstigster
+    Preis"-Badge liegt (siehe _CHEAPEST_BADGE-Kommentar) - die sind laut
+    CHECK24 selbst nicht die tatsaechlich guenstigste buchbare Option, ein
+    blindes min() darueber waere zu niedrig. Bleibt die Badge-Karte selbst
+    (noch) nicht in `rows` (z.B. weil ihr Format nicht zu _ROW passt), wird
+    sie als eigene Zeile ergaenzt."""
+    m = _CHEAPEST_BADGE.search(text)
+    if not m:
+        return rows
+    badge_price = parse_money(m.group("price"))
+    if not badge_price:
+        return rows
+    kept = [r for r in rows if r["price"] >= badge_price - 1]
+    if not any(abs(r["price"] - badge_price) < 1 for r in kept):
+        kept.append({
+            "price": badge_price, "refundable": None,
+            "supplier": m.group("supplier").strip(), "room": m.group("room").strip(),
+        })
+    dropped = len(rows) - len([r for r in rows if r["price"] >= badge_price - 1])
+    if dropped:
+        log.warning("%s: %d Angebot(e) unter CHECK24s eigener 'Guenstigster Preis'-"
+                   "Badge (%.0f) verworfen - nicht die tatsaechlich guenstigste Option",
+                   SOURCE, dropped, badge_price)
+    return kept
 
 
 def _filter_room_category(rows: list[dict], room_hint: str) -> list[dict]:

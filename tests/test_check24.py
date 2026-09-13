@@ -82,6 +82,43 @@ def test_parse_rows_drops_implausible_low_outlier():
     assert prices[0] == 2267.0
 
 
+def test_parse_rows_drops_offers_below_check24s_own_cheapest_badge():
+    # Live-Fund 14.09.26: CHECK24 markiert selbst EINE Karte oben auf der
+    # Seite als "die guenstigste Option zu Ihrer Suche" (hier 3.610EUR).
+    # Trotzdem tauchten in der langen Liste darunter mehrere Zeilen um
+    # 2.300-2.450EUR auf (untereinander kaum unterschiedlich, der Median-
+    # Ausreisser-Filter griff also nicht) - laut CHECK24 selbst NICHT die
+    # guenstigste Option (vermutlich "Vergleichbare Angebote"/veraltete
+    # Preise). Live-Nachpruefung: die reale Buchungsseite zeigte diese
+    # niedrigeren Preise nirgends mehr - nur die Badge (3.610EUR) war echt.
+    badge = (
+        "Günstigster Preis\n"
+        "Dieses Angebot ist die günstigste Option zu Ihrer Suche.\n"
+        "1x Suite\n"
+        "Preis für 3 Erwachsene\n"
+        "Sehr gutes Frühstück im Preis inbegriffen\n"
+        "Nicht kostenlos stornierbar\n"
+        "Anzahlung beim Buchen\n"
+        "Angebot von vtours international\n"
+        "Preis für alle Reisenden\n"
+        "13 Nächte, 1 Zimmer, 3 Erwachsene\n"
+        "5.667 €\n"
+        "3.610 €\n"
+        "buchen\n"
+        "Sie zahlen jetzt noch nichts\n"
+        "36,10 € als Smily Punkte sammeln\n"
+    )
+    listing = (
+        _row_block("2321", "Hotelopia") + _row_block("2383", "Expedia")
+        + _row_block("2417", "Booking.com") + _row_block("3610", "vtours international")
+        + _row_block("3620", "DERTOUR")
+    )
+    rows = _parse_rows(badge + listing)
+    prices = sorted(r["price"] for r in rows)
+    assert prices[0] == 3610.0
+    assert 2321.0 not in prices and 2383.0 not in prices and 2417.0 not in prices
+
+
 def test_parse_rows_keeps_genuinely_close_prices():
     # Gegenprobe: normale Preisstreuung zwischen Anbietern (kein Ausreisser)
     # darf NICHT herausgefiltert werden.
