@@ -29,7 +29,7 @@ from .models import (
 )
 from .notify import maybe_alert
 from .offers import FlightOffer, HotelOffer, PackageOffer
-from .sources import flights_group_browser, flights_ita_matrix, flights_multicity_browser
+from .sources import flights_group_browser, flights_ita_matrix, flights_kayak, flights_multicity_browser
 from .sources.flights import collect_flights
 from .sources.hotels import collect_hotels
 from .sources.packages import collect_packages
@@ -139,6 +139,18 @@ def run_check(trigger: str = "manual") -> dict:
         health["flights"]["multicity_browser"] = mch
     except Exception as exc:  # noqa: BLE001
         health["flights"]["multicity_browser"] = {
+            "ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+
+    # 1a2) Kayak - zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26:
+    # "so viele Angebotsseiten wie moeglich"). Gleicher pax_mode="estimated"-
+    # Kandidatenpool wie die Google-Flights-Zeilen, konkurriert normal ueber
+    # Dedup/Gruppen-Check-Kandidatenwahl mit.
+    try:
+        kayak_offers, kh = flights_kayak.collect(cfg)
+        flights += kayak_offers
+        health["flights"]["kayak"] = kh
+    except Exception as exc:  # noqa: BLE001
+        health["flights"]["kayak"] = {
             "ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
 
     # 1b) Gruppen-/Split-Preis-Verifikation ueber echten Browser statt primp

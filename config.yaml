@@ -196,11 +196,16 @@ sources:
   # eigene Recherche-Kategorie im Dashboard statt Teil der Flugliste.
   # Rechnet spuerbar langsamer als Google Flights (haeufig 25-40s je Suche).
   ita_matrix:
-    # 14.09.26 (externe Review, Punkt B): liefert fuer USM laut README so gut
-    # wie nie einen Preis, kostet aber 4 Browser-Aufrufe pro Lauf - unnoetiges
-    # Blockrisiko fuer eine Quelle, die praktisch nichts beitraegt.
-    enabled: false
+    # 14.09.26: war kurzzeitig deaktiviert (fuer USM schien keine Route
+    # Daten zu liefern) - Nutzer-Fund: das lag am falschen Tab ("Complete
+    # Trips" statt "Individual Flights", siehe flights_ita_matrix.py
+    # Bugfix). Wieder aktiv.
+    enabled: true
     request_delay_seconds: [15, 30]
+  flights_kayak:
+    # Zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26).
+    enabled: true
+    request_delay_seconds: [10, 22]
   hotels:
     # CHECK24: der GENAUE Live-Preis - sucht je Zimmergroesse einzeln
     # (1 Zimmer/3 Erwachsene, 1 Zimmer/2 Erwachsene, ...) und summiert die

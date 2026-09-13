@@ -225,6 +225,13 @@ class FlightsSourceCfg(BaseModel):
     multicity_browser_fallback: bool = True
 
 
+class KayakSourceCfg(BaseModel):
+    # Zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26: "so viele
+    # Angebotsseiten wie moeglich") - siehe sources/flights_kayak.py.
+    enabled: bool = True
+    request_delay_seconds: tuple[float, float] = (10, 22)
+
+
 class HotelsSourceCfg(BaseModel):
     # Google Hotels: schneller Floor-Richtwert (ein Request, kein Browser,
     # aggregiert ~20 OTAs), aber Belegung wird ignoriert (siehe google_hotels.py).
@@ -287,6 +294,7 @@ class ScraperCfg(BaseModel):
 
 class SourcesCfg(BaseModel):
     flights: FlightsSourceCfg = FlightsSourceCfg()
+    flights_kayak: KayakSourceCfg = KayakSourceCfg()
     ita_matrix: ItaMatrixSourceCfg = ItaMatrixSourceCfg()
     hotels: HotelsSourceCfg = HotelsSourceCfg()
     packages: PackagesSourceCfg = PackagesSourceCfg()

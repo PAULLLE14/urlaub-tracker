@@ -30,6 +30,15 @@ daher zuverlaessiger als eine echte Gruppensuche (die Preisspalte zeigt bei
 1 Pax ohnehin den Preis pro Person, exakt wie bei unserem Google-Flights-Weg).
 Fuer alle, die die Original-Seite trotzdem selbst mit echter Personenzahl
 aufrufen wollen, wird zusaetzlich ein entsprechender Deep-Link mitgeliefert.
+
+Bugfix 14.09.26 (Nutzer-Fund): der Standard-Tab nach dem Laden ("Complete
+Trips") berechnet fuer FRA-USM offenbar nie ein komplettes Routing und
+bleibt leer - das wurde zuvor faelschlich als "keine Daten fuer diese Route"
+interpretiert. Der "Individual Flights"-Tab zeigt dagegen eine echte
+Preis-Matrix (Airline x Stopp-Zahl) je Einzelstrecke. ``_search_one`` klickt
+jetzt dorthin, liest den guenstigsten Preis der Hinstrecke, wechselt zur
+Ruecksstrecke und summiert beide - zwei echte Einzelstrecken-Bestpreise,
+keine garantiert buchbare Kombination (bleibt Recherche-Referenz).
 """
 from __future__ import annotations
 
@@ -84,30 +93,68 @@ def _google_flights_crosscheck_url(origin: str, dest: str, out_d: date, ret_d: d
     return "https://www.google.com/travel/flights?" + urlencode({"q": q, "curr": "EUR", "hl": "de"})
 
 
+def _cheapest_from_body(body: str) -> float | None:
+    prices = [float(m.replace(".", "").replace(",", ".")) for m in _PRICE.findall(body)]
+    # Nur plausible Flugpreise (keine Jahreszahlen/IDs, die zufaellig wie
+    # "1.234 €" aussehen wuerden - in der Praxis nicht relevant, da '€'
+    # nur bei echten Preiszellen im Ergebnistext vorkommt).
+    prices = [p for p in prices if 30 <= p <= 50000]
+    return min(prices) if prices else None
+
+
 async def _search_one(cfg: Config, url: str) -> tuple[float | None, str]:
+    """Bugfix 14.09.26 (Nutzer-Fund: "hab Ergebnisse bekommen, du bist zu
+    dumm" - zurecht): der "Complete Trips"-Tab (Standardansicht nach dem
+    Laden) ist fuer FRA-USM leer, ITA Matrix berechnet dort offenbar keine
+    kompletten Routings. Die "Individual Flights"-Matrix (Preis je Airline x
+    Stopp-Zahl, getrennt pro Strecke) hat dagegen echte Daten. Deshalb: auf
+    "Individual Flights" klicken, guenstigsten Preis der Hinstrecke lesen,
+    dann auf die Ruecksstrecke ("2 ...") wechseln und deren guenstigsten
+    Preis addieren - Summe zweier Einzelstrecken-Bestpreise, keine echte
+    Buchung (bleibt eine Recherche-Referenz, siehe Modul-Docstring)."""
     async with browser_page(cfg) as page:
         await goto(page, url)
-        ok = True
         with contextlib.suppress(Exception):
             await page.wait_for_function(
-                "document.body.innerText.includes('€')", timeout=90000)
+                "document.body.innerText.includes('Individual Flights')", timeout=30000)
         with contextlib.suppress(Exception):
-            # kurz nachlegen - direkt nach dem ersten '€' rendert die Liste
-            # oft noch weitere (guenstigere) Zeilen nach.
+            # force=True: ohne das registriert der Klick in Playwright hier
+            # manchmal stillschweigend NICHT (kein Fehler, aber der Tab
+            # wechselt trotzdem nicht - live verifiziert 14.09.26).
+            await page.get_by_text("Individual Flights", exact=False).first.click(
+                timeout=5000, force=True)
+        with contextlib.suppress(Exception):
+            await page.wait_for_function(
+                "document.body.innerText.includes('€')", timeout=60000)
+        with contextlib.suppress(Exception):
             await page.wait_for_timeout(1500)
         body = ""
         with contextlib.suppress(Exception):
             body = await page.inner_text("body", timeout=6000)
-        prices = [float(m.replace(".", "").replace(",", ".")) for m in _PRICE.findall(body)]
-        # Nur plausible Flugpreise (keine Jahreszahlen/IDs, die zufaellig wie
-        # "1.234 €" aussehen wuerden - in der Praxis nicht relevant, da '€'
-        # nur bei echten Preiszellen im Ergebnistext vorkommt).
-        prices = [p for p in prices if 30 <= p <= 50000]
-        if not prices:
+        out_price = _cheapest_from_body(body)
+
+        ret_price = None
+        with contextlib.suppress(Exception):
+            # Zweite Strecke ("2 <Ziel> to <Start>") anklicken - eigene
+            # Matrix, eigener guenstigster Preis. KEIN wait_for_function auf
+            # '€' hier - die Hinstrecken-Preise stehen zu diesem Zeitpunkt
+            # noch im DOM/Text, das wuerde sofort (fälschlich) erfuellt sein,
+            # bevor die neue Matrix ueberhaupt geladen ist. Stattdessen fest
+            # auf die beobachtete Ladezeit warten (live verifiziert 14.09.26:
+            # bis zu 45s bis die Matrix nach einem Tab-Wechsel rendert).
+            leg2 = page.get_by_text(re.compile(r"^2\b"), exact=False).first
+            if await leg2.count():
+                await leg2.click(timeout=5000, force=True)
+                await page.wait_for_timeout(48000)
+                body2 = await page.inner_text("body", timeout=6000)
+                ret_price = _cheapest_from_body(body2)
+
+        if out_price is None:
             if cfg.sources.scraper.screenshot_on_error:
                 await save_screenshot(page, SOURCE)
             return None, body[:400]
-        return min(prices), ""
+        total = out_price + ret_price if ret_price is not None else out_price * 2
+        return total, ""
 
 
 async def fetch(cfg: Config) -> list[dict]:
