@@ -1,4 +1,4 @@
-"""Echte Gruppen-/Split-Preis-Verifizierung via Playwright (NICHT primp).
+"""Echte Gruppen-/Split-Preis-Verifikation via Playwright (NICHT primp).
 
 Kritischer Fund (13.09.26, waehrend eines manuellen Gegenchecks auf
 Nutzerwunsch): primp (reiner HTTP-Request, siehe ``sources/flights.py``)
@@ -7,233 +7,251 @@ einen BRUCHTEIL der echten Ergebnisse. Live reproduziert: eine echte
 8-Pax-Suche FRA-USM 14.-28.05.2027 zeigte per primp nur 1 Treffer (Condor,
 9.200 EUR) - ein echter Browser (dieselbe Suche, dieselbe Route/Datum) zeigt
 SOFORT 2 Treffer, darunter Qatar Airways ab 7.939 EUR (den tatsaechlich
-guenstigsten bestaetigten Preis fuer 8 Personen). Der alte primp-basierte
-Gruppen-Check haette dadurch faelschlich eine echte, verfuegbare, 1.261 EUR
-guenstigere Buchung als "nicht fuer 8 Personen verfuegbar" ausgeschlossen -
-das genaue Gegenteil dessen, wofuer der Gruppen-Check gebaut wurde. Gleiche
-Fehlerklasse wie das primp-Problem bei Multi-City (siehe
-flights_multicity_browser.py): Google berechnet komplexere Suchen
-offenbar teilweise asynchron nach, ein einzelner synchroner HTTP-Request
-bekommt nur einen Teil-Stand.
+guenstigsten bestaetigten Preis fuer 8 Personen). Deshalb: fuer die
+``group_check_top_n`` guenstigsten Round-Trip-Kombinationen UND die
+``multicity_group_check_top_n`` guenstigsten Multi-City-Kombinationen (siehe
+``sources/flights.py`` ``collect_flights()``, das nur noch die Kandidaten
+auswaehlt) wird hier ein echter Browser genutzt.
 
-Deshalb: fuer die ``group_check_top_n`` guenstigsten Round-Trip-Kombinationen
-(siehe ``sources/flights.py`` ``collect_flights()``, das nur noch die
-Kandidaten auswaehlt) wird hier zusaetzlich ein ECHTER Browser genutzt, um
-die tatsaechlich guenstigsten Preise fuer die volle Personenzahl UND fuer
-Split-Ticket-Formen zu finden. Bei Round-Trip zeigt Google (anders als bei
-Multi-City) den vollen Hin+Rueck-Preis direkt in EINER Ergebnisliste - kein
-zweiter Klick noetig, daher deutlich billiger als der Multi-City-Weg.
+14.09.26 (externe Code-Review) - drei Korrekturen:
 
-Split-Check (13.09.26 erweitert, Nutzervorgabe): nicht mehr nur 4+4, sondern
-alle Partitionen der Personenzahl in 2er-/4er-Teile (bei 8 Personen also
-4+4, 4+2+2 und 2+2+2+2) - eine knappe guenstige Tarifklasse kann von
-mehreren kleineren Teilbuchungen oefter getroffen werden als von einer
-grossen. Bewusst NUR innerhalb derselben Route/Datum gemischt (kein
-airport-/datumsuebergreifendes Splitten in EINEM Angebot - das braeuchte
-ein Mehr-Routen-Datenmodell, das FlightOffer aktuell nicht abbildet -
-offener Punkt fuer eine spaetere Erweiterung).
+A1 (falscher Flug): der Gruppen-Check las frueher NUR ``min(prices)`` aus
+der 8-Pax-Karte, das Angebot bekam aber Airlines/Segmente vom 1-Pax-
+Schaetzangebot geliehen. War der guenstigste 8-Pax-Flug ein ANDERER als der
+guenstigste 1-Pax-Flug (z.B. Condor statt Qatar), zeigte das Dashboard eine
+falsche Airline/Zeiten-Preis-Kombination - UND ``apply_constraints()``
+pruefte die falschen Segmentdaten (ein Austrian-Flug oder ein Abflug vor
+16:30 haette so durchrutschen koennen). Jetzt liest ``flight_cards.py`` die
+KOMPLETTE Karte (Preis + Airlines + Zeiten + Stopps + Layover) der
+guenstigsten 8-Pax-Karte, das Angebot bekommt seine EIGENEN (approximierten,
+``segment_times_approximate=True``) Segmente.
 
-Multi-City-Kombinationen werden hier NICHT geprueft (primp findet dafuer
-ohnehin nie Kandidaten, siehe flights_multicity_browser.py fuer den
-eigenen, dortigen 2-Klick-Preis - eine echte Gruppen-Verifikation dafuer
-waere ein sinnvoller naechster Schritt, aber vorerst nicht umgesetzt).
+A2 (Split-Preis war eine Untergrenze, keine Buchung): der alte Split-Check
+summierte Preise verschiedener Zimmergroessen (2/4) aus ``partitions()`` -
+zwei 4er-Suchen treffen aber oft denselben knappen Tarif-Bucket; wenn der nur
+5 Plaetze hat, zeigt JEDE 4er-Suche den billigen Preis, obwohl nur EINE
+Buchung davon wirklich billig waere. Nutzervorgabe 14.09.26: die Gruppe
+besteht aus 2 Familien a 4 Personen - deshalb NUR noch 4+4 (kein
+``partitions()`` mehr fuer Fluege), UND der Preis wird nicht mehr blind
+verdoppelt:
+  - Preis(8)/8 nahe an Preis(4)/4 (<=5%)  -> Bucket reicht fuer alle 8,
+    kein Split-Angebot noetig (der echte 8er-Preis ist bereits das beste
+    Angebot).
+  - Preis(8)/8 deutlich hoeher            -> Bucket hat vermutlich nur 4-7
+    Plaetze. Split-Angebot = 4x Preis(4)/4 (1. Familie sicher billig) +
+    4x Preis(8)/8 (2. Familie konservativ zum vollen 8er-Preis) - eine
+    OBERGRENZE, nie als "bestaetigt" markiert (``pax_mode="split_4_4"`` hat
+    IMMER einen erklaerenden ``price_confidence``-Text, siehe offers.py).
+  - Kein 8er-Preis lesbar                 -> nur die alte Preis-UNTERGRENZE
+    (2x Preis(4)) mit explizitem "nur Untergrenze"-Hinweis.
+
+A3 (Multi-City ohne Gruppen-Check): ``flights_multicity_browser.py`` lieferte
+bisher nur ``pax_mode="estimated"``, das konkurrierte im Verdict direkt mit
+bestaetigten Round-Trip-Preisen. Jetzt bekommen die
+``multicity_group_check_top_n`` guenstigsten Multi-City-Kandidaten ebenfalls
+eine echte 8-Pax-Suche (ueber ``flights_multicity_browser._search_one``).
+
+B (Blockrisiko): der Split-Check (4-Pax-Suche) laeuft nur noch, wenn
+Preis(8)/8 tatsaechlich deutlich (>5%) ueber dem 1-Pax-Schaetzpreis liegt -
+sonst gibt es vermutlich keinen knappen Bucket, ein Split wuerde ohnehin
+nichts bringen. Zusaetzlich bricht die Kandidaten-Schleife fruehzeitig ab,
+sobald ein bestaetigter Bestpreis feststeht und ein Kandidat mit seiner
+1-Pax-Schaetzung mehr als 15% darueber liegt (der wird realistisch ohnehin
+nicht gewinnen).
 """
 from __future__ import annotations
 
-import re
 from datetime import date
 
 from ..config import Config
 from ..logging_setup import get_logger
 from ..offers import FlightOffer
-from .room_split import partitions
-from .flights import _flag_duplicate_estimates, _make_query, _out_leg, _ret_leg
-from .scraper_base import (
-    browser_page,
-    dismiss_consent,
-    expand_more_results,
-    goto,
-    parse_money,
-    save_screenshot,
-    wait_for_stable_result_count,
-)
+from .flight_cards import build_approx_segments, cheapest_card
+from .flights import _flag_duplicate_estimates
+from .flights_browser_search import cheapest_round_trip_cards
+from .flights_multicity_browser import _search_one as _mc_search_one
 
 log = get_logger("source.flights_group_browser")
 SOURCE = "google_flights(playwright-group)"
 
-# Wie _CARD in flights_multicity_browser.py, aber Round-Trip-Karten enden
-# auf "Hin und zurück" statt "gesamte Reise".
-_CARD_RT = re.compile(
-    r"(?P<dep>\d{1,2}:\d{2})\s*\n\s*–\s*\n\s*"
-    r"(?P<arr>\d{1,2}:\d{2})(?:\+(?P<arr_days>\d+))?\s*\n\s*"
-    r"(?P<airlines>[^\n]+?)\s*\n\s*"
-    r"(?P<duration>(?:\d+\s*Std\.?\s*)?(?:\d+\s*Min\.?)?)\s*\n\s*"
-    r"(?P<origin>[A-Z]{3})–(?P<dest>[A-Z]{3})\s*\n\s*"
-    r"(?P<stops>Nonstop|Direkt|\d+\s*Stopps?)\s*\n\s*"
-    r"(?:(?P<layover_line>[^\n]*[A-Z]{3}[^\n]*)\s*\n\s*)?"
-    r".*?(?P<price>[\d.,]+)\s*€\s*\n\s*Hin und zurück",
-    re.S,
-)
+_SPLIT_SIZE = 4  # Nutzervorgabe 14.09.26: 2 Familien a 4 Personen, fest.
+_SAME_BUCKET_RATIO = 1.05   # Preis(8)/8 <= Preis(4)/4 * diesen Faktor -> ein Bucket reicht
+_SPLIT_WORTHWHILE_RATIO = 1.05  # Preis(8)/8 muss mehr als 5% ueber der 1-Pax-Schaetzung liegen
+_SKIP_CANDIDATE_RATIO = 1.15    # Kandidat >15% ueber bestaetigtem Bestpreis -> ueberspringen
 
 
-def _parse_rt_prices(body: str) -> list[float]:
-    out = []
-    for m in _CARD_RT.finditer(body):
-        p = parse_money(m.group("price"))
-        if p:
-            out.append(p)
-    return out
+def _key_of(o: FlightOffer) -> tuple:
+    return (o.trip_type, o.origin, o.destination, o.search_date, o.return_date)
 
 
-async def _cheapest_real_price(cfg: Config, origin: str, out_d: date, ret_d: date,
-                                pax: int) -> tuple[float | None, str]:
-    """Echter guenstigster Round-Trip-Preis fuer `pax` Passagiere. Gibt
-    (Preis-fuer-alle-`pax`-Personen, deep_link) zurueck, (None, url) wenn
-    nichts lesbar war."""
-    legs = [_out_leg(origin, out_d, cfg), _ret_leg(origin, ret_d, cfg)]
-    q, url = _make_query(legs, "round-trip", cfg, pax=pax)
-    async with browser_page(cfg) as page:
-        import contextlib
-        with contextlib.suppress(Exception):
-            await page.context.add_cookies([{"name": "SOCS", "value": "CAI",
-                                             "domain": ".google.com", "path": "/"}])
-        await goto(page, url)
-        await dismiss_consent(page)
-        with contextlib.suppress(Exception):
-            await page.wait_for_function(
-                "document.body.innerText.includes('Hin und zurück') || "
-                "document.body.innerText.includes('Keine Ergebnisse')",
-                timeout=25000,
-            )
-        # Nicht mehr fest 1.2s warten (13.09.26 Nutzervorgabe) - stattdessen
-        # bis die Kartenzahl 2s stabil bleibt, dann "Mehr Fluege" aufklappen.
-        await wait_for_stable_result_count(page, "Hin und zurück")
-        await expand_more_results(page)
-        await wait_for_stable_result_count(page, "Hin und zurück")
-        body = ""
-        with contextlib.suppress(Exception):
-            body = await page.inner_text("body")
-        prices = _parse_rt_prices(body)
-        if not prices:
-            if cfg.sources.scraper.screenshot_on_error:
-                await save_screenshot(page, SOURCE)
-            return None, url
-        return min(prices), url
+def _best_by_key(offers: list[FlightOffer]) -> dict[tuple, FlightOffer]:
+    best: dict[tuple, FlightOffer] = {}
+    for o in offers:
+        key = _key_of(o)
+        if key not in best or o.price_total < best[key].price_total:
+            best[key] = o
+    return best
+
+
+def _offer_from_card(card: dict, *, cfg: Config, origin: str, s_date: date, r_date: date,
+                     pax_mode: str, deep_link: str, price_total: float,
+                     price_per_person: float, price_confidence: str = "") -> FlightOffer:
+    """Baut ein FlightOffer aus einer ECHTEN Ergebniskarte (siehe
+    flight_cards.py) - Airlines/Stopps/Layover-Flughaefen sind real, die
+    Segment-EINZELZEITEN approximiert (nur Gesamt-Abflug/-Ankunft/-Dauer
+    sichtbar), deshalb ``segment_times_approximate=True`` (A1-Fix: nicht
+    mehr die Segmente des 1-Pax-Schaetzangebots wiederverwenden)."""
+    segs = build_approx_segments(card["origin"], card["dest"], card["layovers"],
+                                 card["dep_time"], card["duration_min"], s_date)
+    return FlightOffer(
+        source=SOURCE, direction="round_trip", trip_type="round_trip",
+        origin=origin, destination=cfg.trip.destination_airport,
+        search_date=s_date, return_date=r_date,
+        price_total=round(price_total, 2), price_per_person=round(price_per_person, 2),
+        currency=cfg.trip.currency, airlines=card["airlines"], segments=segs,
+        deep_link=deep_link, pax_mode=pax_mode, price_confidence=price_confidence,
+        segment_times_approximate=True,
+    )
 
 
 async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
-    """Prueft die guenstigsten Round-Trip-Kombinationen aus `offers` echt
-    nach (Gruppen- UND Split-Preis) und mutiert `offers` in-place:
-      - bestaetigt eine echte Gruppensuche den 1-Pax-hochgerechneten Preis
-        NICHT, wird die Hochrechnung (und alle identischen Duplikate, siehe
-        _flag_duplicate_estimates) als ``group_check_unconfirmed`` markiert.
-      - findet die echte Gruppensuche einen ECHTEN Preis, wird dieser als
-        eigenes Angebot (pax_mode="group") angehaengt - unabhaengig davon,
-        ob er die Hochrechnung bestaetigt oder unterbietet.
-      - eine guenstigere 2x(persons/2)-Aufteilung wird als eigenes Angebot
-        (pax_mode="split_half") angehaengt.
-    """
+    """Prueft die guenstigsten Round-Trip- UND Multi-City-Kombinationen aus
+    `offers` echt nach und mutiert `offers` in-place (siehe Modul-Docstring
+    fuer die volle Logik). Gibt eine Zusammenfassung fuer Logs/Health zurueck."""
     t, fs = cfg.trip, cfg.sources.flights
     if not fs.group_check or t.persons <= 1:
         return {"ok": True, "group_checked": 0, "split_checked": 0, "attempted": 0}
 
-    candidates = [o for o in offers if o.trip_type == "round_trip" and not o.excluded]
-    best_by_key: dict[tuple, FlightOffer] = {}
-    for o in candidates:
-        key = (o.trip_type, o.origin, o.destination, o.search_date, o.return_date)
-        if key not in best_by_key or o.price_total < best_by_key[key].price_total:
-            best_by_key[key] = o
-    top_keys = sorted(best_by_key, key=lambda k: best_by_key[k].price_total)[: fs.group_check_top_n]
+    rt_best = _best_by_key([o for o in offers if o.trip_type == "round_trip" and not o.excluded])
+    rt_keys = sorted(rt_best, key=lambda k: rt_best[k].price_total)[: fs.group_check_top_n]
+    mc_best = _best_by_key([o for o in offers if o.trip_type == "multi_city" and not o.excluded])
+    mc_keys = sorted(mc_best, key=lambda k: mc_best[k].price_total)[: fs.multicity_group_check_top_n]
 
-    # Split-Ticket-Formen: alle Partitionen der Personenzahl in 2er-/4er-
-    # Teile (13.09.26 Nutzervorgabe: nicht nur 4+4, auch 2+2+2+2 und 4+2+2 -
-    # eine knappe guenstige Tarifklasse kann so oefter getroffen werden).
-    # Bewusst auf dieselbe Route/Datum beschraenkt (kein Mix verschiedener
-    # Abflughaefen/Termine in EINEM Angebot - das bräuchte ein Mehr-Routen-
-    # Datenmodell, siehe Modul-Docstring fuer den offenen Punkt).
-    split_shapes = [p for p in partitions(t.persons, 4, 2) if all(s in (2, 4) for s in p)]
-    split_sizes = sorted({s for shape in split_shapes for s in shape})
     group_checked = split_checked = 0
     errors: list[str] = []
+    confirmed_best_per_person: float | None = None
 
-    for key in top_keys:
+    for key in rt_keys:
         _trip_type, origin, _destination, s_date, r_date = key
-        estimated = best_by_key[key]
+        estimated = rt_best[key]
         label = f"GROUP({t.persons}) {origin} {s_date}/{r_date}"
+
+        if (confirmed_best_per_person is not None
+                and estimated.price_per_person > confirmed_best_per_person * _SKIP_CANDIDATE_RATIO):
+            log.info("%s: uebersprungen (1-Pax-Schaetzung %.0f > %.0f%% des bestaetigten "
+                     "Bestpreises %.0f)", label, estimated.price_per_person,
+                     _SKIP_CANDIDATE_RATIO * 100, confirmed_best_per_person)
+            continue
+
         group_checked += 1
+        card8 = deep8 = None
         try:
-            cheapest_group, deep = await _cheapest_real_price(cfg, origin, s_date, r_date, t.persons)
-            if cheapest_group is None:
-                log.warning("%s: kein echter Preis lesbar - Hochrechnung bleibt "
-                           "unbestaetigt, aber nicht ausgeschlossen", label)
-            else:
-                log.info("%s: echter Preis %.0f EUR (Hochrechnung war %.0f EUR)",
-                         label, cheapest_group, estimated.price_total)
-                offers.append(FlightOffer(
-                    source=SOURCE, direction="round_trip", trip_type="round_trip",
-                    origin=origin, destination=t.destination_airport,
-                    search_date=s_date, return_date=r_date,
-                    price_total=round(cheapest_group, 2),
-                    price_per_person=round(cheapest_group / t.persons, 2),
-                    currency=t.currency, airlines=list(estimated.airlines),
-                    segments=list(estimated.segments), deep_link=deep, pax_mode="group",
-                ))
-                if cheapest_group > estimated.price_total:
-                    reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
-                             f"Preis verfuegbar (echter Gruppenpreis ab {cheapest_group:.0f} EUR)")
-                    _flag_duplicate_estimates(offers, key, estimated.price_total, reason)
+            cards8, deep8 = await cheapest_round_trip_cards(cfg, origin, s_date, r_date, t.persons)
+            card8 = cheapest_card(cards8)
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{label}: {type(exc).__name__}: {exc}")
             log.warning("%s: Fehler %s: %s", label, type(exc).__name__, exc)
 
-        if split_shapes:
-            price_by_size: dict[int, float] = {}
-            deep_by_size: dict[int, str] = {}
-            for size in split_sizes:
-                label_s = f"SPLIT({size}) {origin} {s_date}/{r_date}"
-                split_checked += 1
-                try:
-                    p, deep = await _cheapest_real_price(cfg, origin, s_date, r_date, size)
-                    if p is None:
-                        log.info("%s: kein echter Preis lesbar", label_s)
-                    else:
-                        price_by_size[size] = p
-                        deep_by_size[size] = deep
-                        log.info("%s: %.0f EUR", label_s, p)
-                except Exception as exc:  # noqa: BLE001
-                    errors.append(f"{label_s}: {type(exc).__name__}: {exc}")
-                    log.warning("%s: Fehler %s: %s", label_s, type(exc).__name__, exc)
+        if card8 is None:
+            log.warning("%s: kein echter Preis lesbar - Hochrechnung bleibt "
+                       "unbestaetigt, aber nicht ausgeschlossen", label)
+        else:
+            log.info("%s: echter Preis %.0f EUR (%s, Hochrechnung war %.0f EUR)",
+                     label, card8["price"], "+".join(card8["airlines"]), estimated.price_total)
+            offers.append(_offer_from_card(
+                card8, cfg=cfg, origin=origin, s_date=s_date, r_date=r_date,
+                pax_mode="group", deep_link=deep8,
+                price_total=card8["price"], price_per_person=card8["price"] / t.persons,
+            ))
+            per_person8 = card8["price"] / t.persons
+            if confirmed_best_per_person is None or per_person8 < confirmed_best_per_person:
+                confirmed_best_per_person = per_person8
+            if card8["price"] > estimated.price_total:
+                reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
+                         f"Preis verfuegbar (echter Gruppenpreis ab {card8['price']:.0f} EUR)")
+                _flag_duplicate_estimates(offers, key, estimated.price_total, reason)
 
-            # Guenstigste Form waehlen (4+4 vs. 4+2+2 vs. 2+2+2+2) - nur
-            # Formen, fuer die ALLE Teilgroessen einen Preis haben.
-            best_shape, best_total = None, None
-            for shape in split_shapes:
-                if not all(s in price_by_size for s in shape):
-                    continue
-                total = sum(price_by_size[s] for s in shape)
-                if best_total is None or total < best_total:
-                    best_shape, best_total = shape, total
+        # Split-Check (A2+B): nur 4+4, nur wenn ein knapper Bucket zu
+        # vermuten ist (Preis(8)/8 spuerbar ueber der 1-Pax-Schaetzung).
+        do_split = (card8 is None or estimated.price_per_person <= 0
+                   or (card8["price"] / t.persons) > estimated.price_per_person * _SPLIT_WORTHWHILE_RATIO)
+        if not do_split:
+            log.info("%s: Split-Check uebersprungen (8er-Preis/Pers. nah an 1-Pax-Schaetzung "
+                     "- vermutlich kein knapper Bucket)", label)
+            continue
 
-            if best_shape:
-                shape_label = "+".join(str(s) for s in best_shape)
-                mode = "split_" + "_".join(str(s) for s in best_shape)
-                deep = deep_by_size.get(best_shape[0], "")
-                log.info("SPLIT-BESTE Form (%s) %s %s/%s: %.0f EUR gesamt "
-                        "(Hochrechnung war %.0f EUR)", shape_label, origin, s_date, r_date,
-                        best_total, estimated.price_total)
-                offers.append(FlightOffer(
-                    source=SOURCE, direction="round_trip", trip_type="round_trip",
-                    origin=origin, destination=t.destination_airport,
-                    search_date=s_date, return_date=r_date,
-                    price_total=round(best_total, 2),
-                    price_per_person=round(best_total / t.persons, 2),
-                    currency=t.currency, airlines=list(estimated.airlines),
-                    segments=list(estimated.segments), deep_link=deep, pax_mode=mode,
-                ))
+        split_checked += 1
+        try:
+            cards4, deep4 = await cheapest_round_trip_cards(cfg, origin, s_date, r_date, _SPLIT_SIZE)
+            card4 = cheapest_card(cards4)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"SPLIT({_SPLIT_SIZE}) {origin} {s_date}/{r_date}: {type(exc).__name__}: {exc}")
+            log.warning("SPLIT(%d) %s %s/%s: Fehler %s: %s", _SPLIT_SIZE, origin, s_date, r_date,
+                       type(exc).__name__, exc)
+            card4 = deep4 = None
+
+        if card4 is None:
+            log.info("SPLIT(%d) %s %s/%s: kein echter Preis lesbar", _SPLIT_SIZE, origin, s_date, r_date)
+            continue
+
+        per_person4 = card4["price"] / _SPLIT_SIZE
+        lower_bound = card4["price"] * 2
+        if card8 is not None:
+            per_person8 = card8["price"] / t.persons
+            ratio = per_person8 / per_person4 if per_person4 else None
+            if ratio is not None and ratio <= _SAME_BUCKET_RATIO:
+                log.info("SPLIT(%d) %s %s/%s: Bucket reicht vermutlich fuer alle %d "
+                        "(Preis/Pers. 8er %.0f ~ 4er %.0f) - kein Split-Angebot noetig",
+                        _SPLIT_SIZE, origin, s_date, r_date, t.persons, per_person8, per_person4)
+                continue
+            estimate_upper = _SPLIT_SIZE * per_person4 + _SPLIT_SIZE * per_person8
+            confidence = (f"Schaetzung: {_SPLIT_SIZE} Plaetze zu {card4['price']:.0f} EUR sicher, "
+                         f"weitere {_SPLIT_SIZE} vorsichtig zum vollen {t.persons}-Pax-Preis "
+                         f"kalkuliert (2. Familie zuerst neu pruefen, bevor die 1. gebucht wird)")
+            price_total = estimate_upper
+        else:
+            confidence = ("Nur Preis-UNTERGRENZE (2. Familie evtl. teurer) - kein echter "
+                         f"{t.persons}-Pax-Preis zum Gegenpruefen lesbar")
+            price_total = lower_bound
+
+        log.info("SPLIT(%d) %s %s/%s: %.0f EUR (%s, %s)", _SPLIT_SIZE, origin, s_date, r_date,
+                price_total, "+".join(card4["airlines"]), confidence)
+        offers.append(_offer_from_card(
+            card4, cfg=cfg, origin=origin, s_date=s_date, r_date=r_date,
+            pax_mode=f"split_{_SPLIT_SIZE}_{_SPLIT_SIZE}", deep_link=deep4,
+            price_total=price_total, price_per_person=price_total / t.persons,
+            price_confidence=confidence,
+        ))
+
+    # Multi-City (A3): kein Split-Check (das 2-Klick-Routing macht eine
+    # zusaetzliche 4-Pax-Suche unverhaeltnismaessig teuer) - nur die echte
+    # 8-Pax-Bestaetigung fuer die guenstigsten Kandidaten.
+    for key in mc_keys:
+        _trip_type, origin, destination, s_date, r_date = key
+        estimated = mc_best[key]
+        label = f"GROUP-MC({t.persons}) {origin}->USM->{destination} {s_date}/{r_date}"
+        group_checked += 1
+        try:
+            off = await _mc_search_one(cfg, origin, destination, s_date, r_date, pax=t.persons)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{label}: {type(exc).__name__}: {exc}")
+            log.warning("%s: Fehler %s: %s", label, type(exc).__name__, exc)
+            continue
+        if off is None:
+            log.warning("%s: kein echter Preis lesbar - Hochrechnung bleibt "
+                       "unbestaetigt, aber nicht ausgeschlossen", label)
+            continue
+        log.info("%s: echter Preis %.0f EUR (Hochrechnung war %.0f EUR)",
+                label, off.price_total, estimated.price_total)
+        offers.append(off)
+        if off.price_total > estimated.price_total:
+            reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
+                     f"Preis verfuegbar (echter Gruppenpreis ab {off.price_total:.0f} EUR)")
+            _flag_duplicate_estimates(offers, key, estimated.price_total, reason)
 
     return {
         "ok": not errors, "group_checked": group_checked, "split_checked": split_checked,
-        "attempted": len(top_keys), "error": "; ".join(errors[:3]),
+        "attempted": len(rt_keys) + len(mc_keys), "error": "; ".join(errors[:3]),
     }
 
 

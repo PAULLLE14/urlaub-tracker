@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.sources.flights_multicity_browser import _build_segments, _parse_cards
+from app.sources.flight_cards import build_approx_segments, parse_cards
 
 SAMPLE_OUTBOUND = """Suchergebnisse
 4 Ergebnisse.
@@ -44,9 +44,34 @@ Durchschn. (geschätzt)
 199 €
 gesamte Reise"""
 
+SAMPLE_RT = """15:15
+ –
+17:45+1
+Qatar Airways
+21 Std. 30 Min.
+FRA–USM
+1 Stopp
+DOH
+668 kg CO2e
+Durchschn. (geschätzt)
+7.939 €
+Hin und zurück
+16:55
+ –
+16:35+1
+Condor, Bangkok Airways
+18 Std. 40 Min.
+FRA–USM
+1 Stopp
+BKK
+617 kg CO2e
+-10 % (geschätzt)
+9.200 €
+Hin und zurück"""
+
 
 def test_parse_cards_extracts_price_stops_layovers():
-    cards = _parse_cards(SAMPLE_OUTBOUND)
+    cards = parse_cards(SAMPLE_OUTBOUND, "gesamte Reise")
     assert len(cards) == 2
     a, b = cards
     assert a["price"] == 1369.0
@@ -59,7 +84,7 @@ def test_parse_cards_extracts_price_stops_layovers():
 
 
 def test_parse_cards_handles_nonstop():
-    cards = _parse_cards(SAMPLE_NONSTOP)
+    cards = parse_cards(SAMPLE_NONSTOP, "gesamte Reise")
     assert len(cards) == 1
     assert cards[0]["stops"] == 0
     assert cards[0]["layovers"] == []
@@ -70,12 +95,27 @@ def test_parse_cards_skips_mismatched_layover_count():
     # Absichtlich verstuemmelt: "2 Stopps" aber nur 1 Layover-Code im Text -
     # darf NICHT als (falsche) 2-Stopp-Karte durchrutschen.
     bad = SAMPLE_OUTBOUND.replace("VIE, BKK\n668 kg", "VIE\n668 kg")
-    cards = _parse_cards(bad)
+    cards = parse_cards(bad, "gesamte Reise")
     assert len(cards) == 1  # nur die zweite (unveraenderte) Karte bleibt gueltig
 
 
+def test_parse_cards_different_end_marker_for_round_trip():
+    # Bugfix 14.09.26 (externe Review, Punkt A1): der Gruppen-Check braucht
+    # die VOLLEN Kartendaten (Airline/Zeiten), nicht nur den Preis - beide
+    # Karten hier haben unterschiedliche Airlines/Zeiten bei unterschiedlichem
+    # Preis, die guenstigere (Qatar, 7.939) darf nicht mit den Daten der
+    # anderen Karte (Condor, 9.200) vermischt werden.
+    cards = parse_cards(SAMPLE_RT, "Hin und zurück")
+    assert len(cards) == 2
+    cheapest = min(cards, key=lambda c: c["price"])
+    assert cheapest["price"] == 7939.0
+    assert cheapest["airlines"] == ["Qatar Airways"]
+    assert cheapest["layovers"] == ["DOH"]
+
+
 def test_build_segments_real_airports_synthetic_times():
-    segs = _build_segments("STR", "USM", ["VIE", "BKK"], "15:15", 21 * 60 + 30, date(2027, 5, 14))
+    segs = build_approx_segments("STR", "USM", ["VIE", "BKK"], "15:15",
+                                 21 * 60 + 30, date(2027, 5, 14))
     assert len(segs) == 3
     codes = [segs[0].from_airport] + [s.to_airport for s in segs]
     assert codes == ["STR", "VIE", "BKK", "USM"]

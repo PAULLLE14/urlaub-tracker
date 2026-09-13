@@ -195,7 +195,9 @@ def _pick_flight(flights: list[FlightOffer], hotel: HotelOffer | None,
         shape = best.pax_mode.removeprefix("split_").replace("_", "+")
         notes.append(f"Guenstigste Option sind {len(shape.split('+'))} GETRENNTE Tickets "
                      f"({shape} Personen) statt einer gemeinsamen Buchung - kein "
-                     f"gemeinsamer Umbuchungsschutz bei Verspaetung, dafuer in Summe guenstiger.")
+                     f"gemeinsamer Umbuchungsschutz bei Verspaetung, dafuer in Summe guenstiger. "
+                     f"{best.price_confidence} Reihenfolge: erst Familie 1 buchen, dann den "
+                     f"Preis fuer Familie 2 SOFORT neu pruefen (kann inzwischen teurer sein).")
     return best, notes
 
 

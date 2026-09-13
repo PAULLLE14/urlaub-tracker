@@ -96,6 +96,10 @@ class FlightOfferRow(Base):
     # Zuordnung zum estimated-Angebot ueber die Route/Datums-Kombination,
     # nicht ueber eine FK (die id steht vor dem Insert noch nicht fest).
     pax_mode: Mapped[str] = mapped_column(String(12), default="estimated", index=True)
+    # Nur fuer pax_mode="split_4_4" gesetzt - erklaert, ob der Preis eine
+    # reine Untergrenze oder eine konservative Schaetzung ist (siehe
+    # offers.py FlightOffer.price_confidence).
+    price_confidence: Mapped[str] = mapped_column(String(300), default="")
 
 
 class HotelOfferRow(Base):

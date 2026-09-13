@@ -31,20 +31,18 @@ basieren auf echten Werten).
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import date
 
 from ..config import Config
-from ..geo import get_airport
 from ..logging_setup import get_logger
-from ..offers import FlightOffer, Segment
-from .flights import _make_query, _out_leg, _ret_leg
+from ..offers import FlightOffer
+from .flight_cards import build_approx_segments, parse_cards
+from .flights import SEARCH_PAX, _make_query, _out_leg, _ret_leg
 from .scraper_base import (
     browser_page,
     dismiss_consent,
     expand_more_results,
     goto,
-    parse_money,
     save_screenshot,
     wait_for_stable_result_count,
 )
@@ -56,79 +54,13 @@ SOURCE = "google_flights(playwright-multicity)"
 #   15:15 \n – \n 17:45+1 \n Airline1, Airline2 \n 21 Std. 30 Min. \n
 #   STR–USM \n 2 Stopps \n VIE, BKK \n 668 kg CO2e \n ... \n 1.369 € \n
 #   gesamte Reise
-_CARD = re.compile(
-    r"(?P<dep>\d{1,2}:\d{2})\s*\n\s*–\s*\n\s*"
-    r"(?P<arr>\d{1,2}:\d{2})(?:\+(?P<arr_days>\d+))?\s*\n\s*"
-    r"(?P<airlines>[^\n]+?)\s*\n\s*"
-    r"(?P<duration>(?:\d+\s*Std\.?\s*)?(?:\d+\s*Min\.?)?)\s*\n\s*"
-    r"(?P<origin>[A-Z]{3})–(?P<dest>[A-Z]{3})\s*\n\s*"
-    r"(?P<stops>Nonstop|Direkt|\d+\s*Stopps?)\s*\n\s*"
-    r"(?:(?P<layover_line>[^\n]*[A-Z]{3}[^\n]*)\s*\n\s*)?"
-    r".*?(?P<price>[\d.,]+)\s*€\s*\n\s*gesamte Reise",
-    re.S,
-)
-_AIRPORT_CODE = re.compile(r"\b[A-Z]{3}\b")
-
-
-def _duration_minutes(text: str) -> int:
-    h = re.search(r"(\d+)\s*Std", text)
-    m = re.search(r"(\d+)\s*Min", text)
-    return (int(h.group(1)) * 60 if h else 0) + (int(m.group(1)) if m else 0)
-
-
-def _stops_count(text: str) -> int:
-    if text.strip() in ("Nonstop", "Direkt"):
-        return 0
-    m = re.search(r"(\d+)", text)
-    return int(m.group(1)) if m else 0
+# (Parsing/Segment-Aufbau: siehe flight_cards.py - geteilt mit
+# flights_group_browser.py, das dieselben Karten fuer Round-Trip liest.)
+_END_MARKER = "gesamte Reise"
 
 
 def _parse_cards(body: str) -> list[dict]:
-    out = []
-    for m in _CARD.finditer(body):
-        price = parse_money(m.group("price"))
-        if not price:
-            continue
-        stops = _stops_count(m.group("stops"))
-        layovers = _AIRPORT_CODE.findall(m.group("layover_line") or "")
-        if len(layovers) != stops:
-            # Karte nicht sauber geparst (Layover-Zahl passt nicht zur
-            # Stopp-Zahl) - lieber ueberspringen als falsche Airports uebernehmen.
-            continue
-        out.append({
-            "dep_time": m.group("dep"), "airlines": [a.strip() for a in m.group("airlines").split(",")],
-            "duration_min": _duration_minutes(m.group("duration")),
-            "origin": m.group("origin"), "dest": m.group("dest"),
-            "stops": stops, "layovers": layovers, "price": price,
-        })
-    return out
-
-
-def _build_segments(origin: str, dest: str, layovers: list[str], dep_time: str,
-                    total_minutes: int, day: date) -> list[Segment]:
-    """Baut ``len(layovers)+1`` Segmente mit ECHTEN Flughaefen, aber
-    gleichmaessig verteilten (geschaetzten) Zeiten - siehe Modul-Docstring."""
-    airports = [origin, *layovers, dest]
-    n = len(airports) - 1
-    per_leg = max(1, total_minutes // n)
-    o0 = get_airport(origin)
-    # "cur" ist immer der ABSOLUTE Zeitpunkt (Instant) - wird pro Etappe in
-    # die Zeitzone des jeweiligen Flughafens konvertiert, statt die Zeitzone
-    # der ersten Etappe einfach ueber alle Segmente hinweg mitzuschleppen
-    # (sonst haette z.B. eine BKK-Ankunft faelschlich "Europe/Berlin" als
-    # Zeitzone gezeigt - Bugfix waehrend der Live-Erstverifikation 12.09.26).
-    cur = datetime.fromisoformat(f"{day.isoformat()}T{dep_time}:00").replace(tzinfo=ZoneInfo(o0.tz))
-    segs = []
-    for i in range(n):
-        frm, to = airports[i], airports[i + 1]
-        dtz, atz = get_airport(frm).tz, get_airport(to).tz
-        dep = cur.astimezone(ZoneInfo(dtz))
-        arr_instant = dep + timedelta(minutes=per_leg)
-        arr = arr_instant.astimezone(ZoneInfo(atz))
-        segs.append(Segment(from_airport=frm, to_airport=to, departure=dep, arrival=arr,
-                            departure_tz=dtz, arrival_tz=atz, duration_minutes=per_leg))
-        cur = arr_instant
-    return segs
+    return parse_cards(body, _END_MARKER)
 
 
 async def _wait_for_cards(page) -> None:
@@ -149,13 +81,18 @@ async def _wait_for_cards(page) -> None:
 
 
 async def _search_one(cfg: Config, origin: str, dest: str, out_d: date,
-                      ret_d: date) -> FlightOffer | None:
+                      ret_d: date, pax: int = SEARCH_PAX) -> FlightOffer | None:
+    """``pax`` steuert die ECHTE Suchanfrage: Standard (SEARCH_PAX=1) liefert
+    eine Hochrechnung wie bisher, ``pax=cfg.trip.persons`` fragt Google
+    direkt mit der vollen Personenzahl (14.09.26, externe Review Punkt A3:
+    Multi-City bekam bisher NIE einen echten Gruppen-Check - eine 1-Pax-
+    Hochrechnung konkurrierte im Verdict direkt mit bestaetigten Round-Trip-
+    Preisen)."""
     q, url = _make_query([_out_leg(origin, out_d, cfg), _ret_leg(dest, ret_d, cfg)],
-                         "multi-city", cfg)
-    # Suche selbst mit 1 Pax (siehe flights.py SEARCH_PAX-Kommentar), aber
-    # der Link fuer den Nutzer soll die echte Personenzahl zeigen (Nutzer-
-    # Fund 13.09.26: "Links fuehren immer noch zu Ergebnissen fuer eine
-    # Person") - zweiter, rein lokal kodierter Query, kein Extra-Request.
+                         "multi-city", cfg, pax=pax)
+    # Der Link fuer den Nutzer soll immer die echte Personenzahl zeigen
+    # (Nutzer-Fund 13.09.26: "Links fuehren immer noch zu Ergebnissen fuer
+    # eine Person") - zweiter, rein lokal kodierter Query, kein Extra-Request.
     _, url_group = _make_query([_out_leg(origin, out_d, cfg), _ret_leg(dest, ret_d, cfg)],
                                "multi-city", cfg, pax=cfg.trip.persons)
     async with browser_page(cfg) as page:
@@ -198,20 +135,27 @@ async def _search_one(cfg: Config, origin: str, dest: str, out_d: date,
         ret_cards.sort(key=lambda c: c["price"])
         ret_cheapest = ret_cards[0]
 
-    out_segs = _build_segments(cheapest["origin"], cheapest["dest"], cheapest["layovers"],
-                               cheapest["dep_time"], cheapest["duration_min"], out_d)
-    ret_segs = _build_segments(ret_cheapest["origin"], ret_cheapest["dest"], ret_cheapest["layovers"],
-                               ret_cheapest["dep_time"], ret_cheapest["duration_min"], ret_d)
+    out_segs = build_approx_segments(cheapest["origin"], cheapest["dest"], cheapest["layovers"],
+                                     cheapest["dep_time"], cheapest["duration_min"], out_d)
+    ret_segs = build_approx_segments(ret_cheapest["origin"], ret_cheapest["dest"], ret_cheapest["layovers"],
+                                     ret_cheapest["dep_time"], ret_cheapest["duration_min"], ret_d)
     total = ret_cheapest["price"]  # "gesamte Reise" auf der Rueckflug-Karte ist der volle Endpreis
     persons = cfg.trip.persons
     airlines = list(dict.fromkeys([*cheapest["airlines"], *ret_cheapest["airlines"]]))
+    if pax >= persons:
+        # Echte Gruppensuche: "total" ist bereits der Gesamtpreis fuer alle
+        # `pax` Personen, NICHT hochrechnen (gleiche Logik wie flights.py
+        # _to_offer fuer pax_mode="group").
+        price_total, price_per_person, pax_mode = round(total, 2), round(total / persons, 2), "group"
+    else:
+        price_total, price_per_person, pax_mode = round(total * persons, 2), round(total, 2), "estimated"
     return FlightOffer(
         source=SOURCE, direction="multi_city", trip_type="multi_city",
         origin=origin, destination=dest, search_date=out_d, return_date=ret_d,
-        price_total=round(total * persons, 2), price_per_person=round(total, 2),
+        price_total=price_total, price_per_person=price_per_person,
         currency=cfg.trip.currency, airlines=airlines,
         segments=out_segs, return_segments=ret_segs,
-        deep_link=url_group, pax_mode="estimated", segment_times_approximate=True,
+        deep_link=url_group, pax_mode=pax_mode, segment_times_approximate=True,
     )
 
 

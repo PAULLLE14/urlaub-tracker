@@ -80,7 +80,7 @@ def flight_offer_dict(f: FlightOfferRow) -> dict[str, Any]:
         "captured_at": f.captured_at.isoformat() if f.captured_at else None,
         "excluded": f.excluded, "exclude_reason": f.exclude_reason,
         "departure": (f.segments[0]["departure"] if f.segments else None),
-        "pax_mode": f.pax_mode,
+        "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
     }
 
 

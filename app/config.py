@@ -198,8 +198,11 @@ class FlightsSourceCfg(BaseModel):
     # da Google beim Round-Trip selbst nur den Hinflug im Detail zeigt.
     oneway_legs: bool = True
     oneway_legs_all_dates: bool = False
-    # Bei "unusual traffic"/Blockade: eine Wiederholung nach Pause.
+    # Bei "unusual traffic"/Blockade: exponentielles Backoff (75s, 150s,
+    # 300s, ...) statt nur einer festen Wiederholung (14.09.26, externe
+    # Review Punkt B - ein einzelner Retry nach 75s reichte oft nicht).
     retry_blocked_after_seconds: float = 75
+    retry_blocked_max_attempts: int = 3
     # Echte Gruppensuche (Passengers(adults=trip.persons)) fuer die
     # guenstigsten Routen aus der 1-Pax-Hochrechnung: deckt Faelle auf, in
     # denen die guenstige Kombination fuer die volle Personenzahl gar nicht
@@ -209,6 +212,11 @@ class FlightsSourceCfg(BaseModel):
     # werden zusaetzlich echt geprueft (sonst verdoppelt sich die Abfragezahl).
     group_check: bool = True
     group_check_top_n: int = 6
+    # A3 (externe Review 14.09.26): Multi-City bekam bisher NIE einen echten
+    # Gruppen-Check, eine 1-Pax-Hochrechnung konnte unbestaetigt gegen
+    # bestaetigte Round-Trip-Preise gewinnen. Klein gehalten (2-Klick-Browser-
+    # Weg ist teurer als der Round-Trip-Weg).
+    multicity_group_check_top_n: int = 3
     # primp (reiner HTTP-Request) bekommt fuer Multi-City-Routen zu USM
     # reproduzierbar keine Daten (verifiziert 12.09.26, siehe
     # sources/flights_multicity_browser.py) - dieser Schalter aktiviert

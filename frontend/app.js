@@ -396,7 +396,16 @@ function renderFlights(rows) {
         : r.pax_mode && r.pax_mode.startsWith("split_")
         ? (() => {
             const parts = r.pax_mode.replace("split_", "").split("_");
-            return ` <span class="tag amber" title="${parts.length} getrennte Tickets (${parts.join("+")} Personen) statt einer gemeinsamen Buchung - je Teilgruppe real gesucht, kein gemeinsamer Umbuchungsschutz">${parts.length}× getrennt (${parts.join("+")})</span>`;
+            // 14.09.26 (externe Review, Punkt A2): ein Split-Preis ist NIE
+            // bestaetigt - je nachdem ob ein echter 8-Pax-Vergleichspreis
+            // vorlag, ist es entweder nur eine Preis-UNTERGRENZE oder eine
+            // konservative Schaetzung (2. Familie zum vollen 8er-Preis
+            // kalkuliert) - siehe price_confidence (immer gesetzt fuer split_4_4).
+            const isLowerBound = (r.price_confidence || "").includes("UNTERGRENZE");
+            const label = isLowerBound ? "Untergrenze" : "Schätzung";
+            const tip = (r.price_confidence || "") +
+              " — erst Familie 1 buchen, dann Preis für Familie 2 sofort neu prüfen.";
+            return ` <span class="tag amber" title="${tip.replace(/"/g, '&quot;')}">${parts.length}× getrennt (${parts.join("+")}) · ${label}</span>`;
           })()
         : r.pax_mode === "estimated"
         ? ` <span class="tag" style="opacity:.6" title="Nur 1 Person real gesucht, Preis ×8 hochgerechnet - fuer diese Route/Termin gibt es i.d.R. weiter unten eine echt fuer 8 bzw. 4+4 Personen gepruefte Zeile (Badge 'Gruppe geprüft' / 'getrennt')">Hochrechnung</span>`

@@ -121,7 +121,7 @@ flight_constraints:
   # Interpretation des Preis-Feldes der Flugquelle:
   #   true  -> gelieferter Preis ist Gesamtpreis fuer alle Pax
   #   false -> gelieferter Preis ist pro Person
-  price_is_total_for_all_pax: false   # Google-Flights-Gruppensuche liefert nichts -> 1-Pax-Suche, Preis wird x8 hochgerechnet
+  price_is_total_for_all_pax: false   # gilt fuer die primp-Basissuche (1 Pax, Preis wird x8 hochgerechnet); der echte Browser-Gruppen-Check (flights_group_browser.py) liefert seit 13.09.26 den tatsaechlichen 8-Pax-Gesamtpreis unabhaengig von dieser Einstellung
 
   seat_class: economy            # economy | premium-economy | business | first
 
@@ -189,7 +189,10 @@ sources:
   # eigene Recherche-Kategorie im Dashboard statt Teil der Flugliste.
   # Rechnet spuerbar langsamer als Google Flights (haeufig 25-40s je Suche).
   ita_matrix:
-    enabled: true
+    # 14.09.26 (externe Review, Punkt B): liefert fuer USM laut README so gut
+    # wie nie einen Preis, kostet aber 4 Browser-Aufrufe pro Lauf - unnoetiges
+    # Blockrisiko fuer eine Quelle, die praktisch nichts beitraegt.
+    enabled: false
     request_delay_seconds: [15, 30]
   hotels:
     # CHECK24: der GENAUE Live-Preis - sucht je Zimmergroesse einzeln

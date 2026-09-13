@@ -80,6 +80,16 @@ class FlightOffer:
     # "estimated" (1-Pax-Suche x Personenzahl) oder "group" (echte Suche mit
     # der vollen Personenzahl - siehe sources/flights.py collect_flights).
     pax_mode: str = "estimated"
+    # Nur fuer pax_mode="split_4_4" gesetzt (siehe flights_group_browser.py
+    # 14.09.26 Umbau, externe Review Punkt A2): eine 4+4-Aufteilung ist NIE
+    # ein bestaetigter Preis, sondern entweder eine reine Preis-UNTERGRENZE
+    # (beide 4er-Suchen koennten denselben knappen Tarif-Bucket treffen, der
+    # in Wirklichkeit nur fuer EINE der beiden Buchungen reicht) oder eine
+    # konservative Schaetzung (2. Familie zum vollen 8-Pax-Preis kalkuliert).
+    # Leerstring fuer alle anderen pax_mode - dort ist der Preis entweder
+    # eine echte Hochrechnung (estimated) oder ein real bestaetigter
+    # Gesamtpreis (group).
+    price_confidence: str = ""
     # Von collect_flights gesetzt, wenn eine 1-Pax-Hochrechnung durch eine
     # echte Gruppen-Suche widerlegt wurde (die Gruppe bekommt diesen Preis
     # nachweislich NICHT). route_filter.evaluate() liest das und schliesst

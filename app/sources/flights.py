@@ -19,8 +19,12 @@ Weitere Design-Entscheidungen:
   * **EU-Consent:** ohne Cookie leitet Google auf consent.google.com um -> wir
     holen das HTML selbst (primp mit Chrome-Impersonation + Cookie ``SOCS=CAI``)
     und geben es an den fast-flights-Parser.
-  * **Gruppensuche** liefert serverseitig nichts -> Suche mit 1 Pax, Preis
-    x ``trip.persons`` (``price_is_total_for_all_pax: false``).
+  * **Basissuche** laeuft mit 1 Pax, Preis x ``trip.persons``
+    (``price_is_total_for_all_pax: false``) - primp liefert fuer
+    Mehrpersonen-Anfragen oft nur einen Bruchteil der echten Ergebnisse
+    (siehe ``flights_group_browser.py`` Modul-Docstring). Die echte
+    Personenzahl wird stattdessen dort per Browser fuer die guenstigsten
+    Kandidaten nachverifiziert (``pax_mode="group"``/``"split_4_4"``).
   * **Blockade-Erkennung:** "unusual traffic"/Sorry-Seite -> eigener Fehler,
     eine Wiederholung nach Pause, danach als Quelle-Fehler im Health sichtbar
     (nicht als "keine Fluege" verschleiert).
@@ -265,11 +269,25 @@ def _run_query(q, fetcher, cfg) -> list:
     sichtbar, NIE als "keine Fluege" interpretiert)."""
     try:
         return list(get_flights(q, integration=fetcher))
-    except FlightBlocked:
-        wait = cfg.sources.flights.retry_blocked_after_seconds
-        log.warning("Blockiert - Wiederholung in %.0fs", wait)
-        _time.sleep(wait)
-        return list(get_flights(q, integration=fetcher))  # wirft ggf. erneut
+    except FlightBlocked as exc:
+        # 14.09.26 (externe Review, Punkt B): ein einzelner Retry nach fester
+        # Pause reicht bei "unusual traffic" oft nicht - Google haelt eine
+        # Blockade meist laenger als 75s durch. Exponentielles Backoff ueber
+        # mehrere Versuche statt nur einen, Obergrenze verhindert, dass ein
+        # einzelner Lauf ewig haengt.
+        base = cfg.sources.flights.retry_blocked_after_seconds
+        max_attempts = cfg.sources.flights.retry_blocked_max_attempts
+        last_exc: Exception = exc
+        for attempt in range(1, max_attempts + 1):
+            wait = min(base * (2 ** (attempt - 1)), 600)
+            log.warning("Blockiert (Versuch %d/%d) - Wiederholung in %.0fs",
+                       attempt, max_attempts, wait)
+            _time.sleep(wait)
+            try:
+                return list(get_flights(q, integration=fetcher))
+            except FlightBlocked as exc2:
+                last_exc = exc2
+        raise last_exc
     except Exception as exc:
         if type(exc).__name__ not in _RETRYABLE_PARSE_ERRORS:
             raise
@@ -279,6 +297,59 @@ def _run_query(q, fetcher, cfg) -> list:
                    type(exc).__name__, wait, exc)
         _time.sleep(wait)
         return list(get_flights(q, integration=fetcher))  # wirft ggf. erneut
+
+
+def _browser_fallback_offers(cfg: Config, meta: dict, deep_group: str) -> list[FlightOffer]:
+    """Playwright-Fallback fuer primp-Ausfaelle bei einzelnen Round-Trip-
+    Kombis (siehe A4-Kommentar am Aufrufer). Baut aus den ECHTEN Karten
+    (siehe flight_cards.py) dieselben "estimated" 1-Pax-hochgerechneten
+    Angebote wie der primp-Pfad - nur eben aus dem Browser statt aus einem
+    fehlgeschlagenen HTTP-Request."""
+    from .scraper_base import playwright_available
+
+    ok, err = playwright_available()
+    if not ok:
+        log.warning("Browser-Fallback nicht verfuegbar: %s", err)
+        return []
+
+    import asyncio
+
+    from .flight_cards import build_approx_segments
+    from .flights_browser_search import cheapest_round_trip_cards
+
+    origin, s_date, r_date = meta["origin"], meta["search_date"], meta["return_date"]
+
+    async def _run():
+        cards, _ = await cheapest_round_trip_cards(cfg, origin, s_date, r_date, SEARCH_PAX)
+        return cards
+
+    try:
+        try:
+            cards = asyncio.run(_run())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                cards = loop.run_until_complete(_run())
+            finally:
+                loop.close()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Browser-Fallback fehlgeschlagen: %s: %s", type(exc).__name__, exc)
+        return []
+
+    persons = cfg.trip.persons
+    out = []
+    for card in cards:
+        segs = build_approx_segments(card["origin"], card["dest"], card["layovers"],
+                                     card["dep_time"], card["duration_min"], s_date)
+        out.append(FlightOffer(
+            source="google_flights(playwright-fallback)", direction=meta["direction"],
+            trip_type=meta["trip_type"], origin=origin, destination=meta["destination"],
+            search_date=s_date, return_date=r_date,
+            price_total=round(card["price"] * persons, 2), price_per_person=round(card["price"], 2),
+            currency=cfg.trip.currency, airlines=card["airlines"], segments=segs,
+            deep_link=deep_group, pax_mode="estimated", segment_times_approximate=True,
+        ))
+    return out
 
 
 def _flag_duplicate_estimates(offers: list[FlightOffer], key: tuple, price: float,
@@ -406,6 +477,24 @@ def collect_flights(cfg: Config, proxy: str | None = None) -> tuple[list[FlightO
             name = type(exc).__name__
             if name in _EMPTY_RESULT_ERRORS:
                 log.info("%s: keine Fluege (leeres Ergebnis / noch nicht im Verkauf)", label)
+            elif trip == "round-trip" and name in _RETRYABLE_PARSE_ERRORS:
+                # A4 (externe Review 14.09.26): primp scheitert fuer manche
+                # Kombis reproduzierbar mit einem der bekannten transienten
+                # Parser-Fehler (verifiziert fuer STR/MUC), obwohl echte
+                # Fluege existieren - Browser-Fallback statt die Route
+                # komplett aus dem Vergleich zu nehmen.
+                fb_offers = _browser_fallback_offers(cfg, meta, deep_group)
+                if fb_offers:
+                    offers.extend(fb_offers)
+                    log.info("%s: primp gescheitert (%s) - Browser-Fallback lieferte %d Angebote",
+                             label, name, len(fb_offers))
+                else:
+                    failed += 1
+                    first_error = first_error or f"{label}: {name}: {exc} (Browser-Fallback auch leer)"
+                    log.warning("%s: primp UND Browser-Fallback gescheitert", label)
+                    manual_check.append({"label": label,
+                                        "reason": f"{name}: {exc} (auch per Browser kein Preis)",
+                                        "deep_link": deep_group})
             else:
                 # Auch nach der Wiederholung in _run_query gescheitert (egal ob
                 # Blockade oder Parser-Fehler) - NIE als "keine Fluege"
