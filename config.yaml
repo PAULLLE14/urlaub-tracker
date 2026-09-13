@@ -53,7 +53,14 @@ trip:
 
   hotel:
     name: "Santiburi Koh Samui"
-    room_type_hint: "Grand Reserve Villa"        # oder vergleichbar, 3 Pers.
+    # Leer = keine feste Kategorie, einfach die guenstigste Villa nehmen
+    # (Nutzervorgabe 14.09.26). "Grand Reserve Villa" gibt es bei CHECK24 gar
+    # nicht als Kategoriename (echte Kategorien: "Deluxe Beachfront Villa",
+    # "Deluxe Garden Villa" usw.) - der Filter griff dadurch nie, nur
+    # verwirrende Warnungen im Log. Schutz vor irrefuehrenden Ausreisser-
+    # Preisen (z.B. ein einzelner falsch niedriger Supplier-Preis) macht
+    # weiterhin _drop_price_outliers() in check24.py.
+    room_type_hint: ""
     # Feste Ziel-URLs der Buchungsseiten (Property-Seiten). Datum/Belegung
     # werden vom Scraper als Query-Parameter angehaengt.
     booking_url: "https://www.booking.com/hotel/th/santiburi-resort-koh-samui.html"
