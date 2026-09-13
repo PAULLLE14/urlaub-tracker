@@ -1,0 +1,250 @@
+# ===========================================================================
+# Urlaub-Tracker  -  Reise- und Tracking-Konfiguration
+# Alle Reiseparameter leben hier, NICHT im Code.  Nach Aenderung: Neustart
+# des Dienstes (oder POST /api/check/run) genuegt.
+# ===========================================================================
+
+trip:
+  label: "Koh Samui 2027 - Santiburi - 8 Pax"
+  persons: 8
+  rooms: 3                       # Villen/Zimmer im Santiburi
+  max_persons_per_room: 3
+  nights: 13                     # = hotel_checkout - hotel_checkin
+  currency: EUR
+
+  destination_airport: USM       # Koh Samui
+  # Letzter Zubringer-Leg ist Monopol Bangkok Airways BKK->USM.
+  # Wird immer separat mitgesucht und im Dashboard als eigener Posten gezeigt.
+  final_hub: BKK
+
+  # Alle Abflughaefen. Hin- und Rueckflug-Flughafen duerfen verschieden sein
+  # -> es werden alle Kombinationen (mix & match) ausgewertet.
+  origin_airports: [STR, MUC, FRA, ZRH]
+
+  # Abflug UND Rueckflug koennen beide OFFEN zwischen mehreren Terminen
+  # sein - JEDE Kombination wird als echte, gleichwertige Option gesucht und
+  # verglichen (unterschiedliche Hotel-Naechte-Zahl je nach Kombi, siehe
+  # date_pairs unten + _hotel_nights_delta in logic/combine.py - der
+  # Hotel-Checkin wird dort relativ zum ECHTEN Abflugdatum jedes Angebots
+  # berechnet, +1 Tag Nachtflug, nicht fest verdrahtet).
+  outbound_dates: ["2027-05-14", "2027-05-15"]
+  return_dates:   ["2027-05-28", "2027-05-29"]
+
+  # Tatsaechlicher Hotel-Zeitraum FUER DIE STANDARD-KOMBINATION: Hinflug
+  # startet am 14.05. in D, wegen Nachtflug/Zeitverschiebung Ankunft in
+  # Thailand aber erst am 15.05. -> das Hotel wird erst ab dann gebraucht,
+  # Rueckflug 28.05. -> 13 Naechte. Andere Abflug/Rueckflug-Kombinationen
+  # werden automatisch relativ zum echten Abflugdatum jedes Angebots
+  # hoch-/runtergerechnet (siehe oben), NICHT hier fest eingepreist.
+  hotel_checkin: "2027-05-15"
+  hotel_checkout: "2027-05-28"
+
+  # Sinnvolle Hin/Rueck-Paare fuer die Round-Trip-Suche (ein Ticket): alle
+  # wirklich in Frage kommenden Kombinationen aus Abflug- und
+  # Rueckflugterminen als eigene Paare (NICHT blind outbound_dates x
+  # return_dates kreuzen, wenn manche Kombinationen unrealistisch/zu kurz
+  # waeren - jedes Paar hier einzeln pruefen, ob es Sinn ergibt).
+  date_pairs:
+    - ["2027-05-14", "2027-05-28"]
+    - ["2027-05-14", "2027-05-29"]
+    - ["2027-05-15", "2027-05-28"]
+    - ["2027-05-15", "2027-05-29"]
+
+  hotel:
+    name: "Santiburi Koh Samui"
+    room_type_hint: "Grand Reserve Villa"        # oder vergleichbar, 3 Pers.
+    # Feste Ziel-URLs der Buchungsseiten (Property-Seiten). Datum/Belegung
+    # werden vom Scraper als Query-Parameter angehaengt.
+    booking_url: "https://www.booking.com/hotel/th/santiburi-resort-koh-samui.html"
+    expedia_url: "https://www.expedia.de/Koh-Samui-Hotels-Santiburi-Koh-Samui.h1636437.Hotel-Information"
+    official_url: "https://www.santiburisamui.com/"
+    # CHECK24-Hoteleintrag "<Name>-<ID>" - steht in der Detail-URL nach
+    # einer Suche auf hotel.check24.de (z.B. .../search/Santiburi%20Koh%20
+    # Samui-9203019/.../hotel.html -> "Santiburi Koh Samui-9203019").
+    check24_slug_id: "Santiburi Koh Samui-9203019"
+    # ANDERE ID als oben - fuer die Pauschalreise-Suche (urlaub.check24.de,
+    # Reiter "Pauschalreisen"). Einmalig suchen, aus der Ergebnis-URL lesen
+    # (areaId=... & hotelId=...).
+    check24_package_area_id: "824"
+    check24_package_hotel_id: "2699"
+
+  # Selbst recherchierte Preise als vollwertige Vergleichs-/Alarm-Basis.
+  # Beispiel:
+  reference_offers: []
+  #  - label: "CHECK24 Direktfund"
+  #    category: hotel          # hotel | package
+  #    price_total: 8300
+  #    currency: EUR
+  #    note: "3 Zimmer, 8 Personen, 14 Naechte"
+  #    url: ""
+  #  - label: "TUI Pauschal"
+  #    category: package
+  #    price_total: 31900
+  #    operator: "TUI"
+  #    dep_airport: "FRA"
+  #    board: "Fruehstueck"
+
+# --- Harte Constraints fuer die Flugsuche -----------------------------------
+flight_constraints:
+  max_stops_per_direction: 2
+
+  # Nur DURCHGEHENDE Tickets (ein Buchungscode, geschuetzte Anschluesse).
+  # Getrennte Tickets / Self-Transfer werden ausgeblendet -> bei Verspaetung
+  # ist die Airline fuer die Umbuchung zustaendig.
+  single_ticket_only: true
+  # Es zaehlen NUR zusammenhaengende Buchungen (Round-Trip oder Multi-City,
+  # siehe sources.flights unten) - reine Einzelrichtungs-Tickets werden von
+  # der Vergleichslogik und im Dashboard nicht als Option angezeigt.
+
+  # Abreisetag-Zeitfenster: Anfahrt zum Flughafen, airport-spezifisch
+  # moeglich (naeher gelegene Flughaefen duerfen einen frueheren
+  # Abflug-Cutoff haben). Gilt NUR fuer den ersten Leg am Hinflug-Starttag
+  # (nicht Stopps/Rueckflug). outbound_earliest_departure ist der Fallback
+  # fuer Flughaefen, die in outbound_earliest_departure_by_airport fehlen.
+  outbound_earliest_departure: "15:00"
+  outbound_earliest_departure_by_airport:
+    STR: "16:30"
+    MUC: "17:00"
+    FRA: "17:00"
+    ZRH: "17:00"
+
+  # Unsinnige Umwege aussortieren (auch wenn Stopp-Limit formal ok):
+  # Gesamt-Routendistanz > Faktor x Direktdistanz  ->  verworfen.
+  max_detour_ratio: 1.7
+  # ... aber Kurzstrecken (Zubringer) nicht ueberfiltern:
+  detour_min_direct_km: 1500
+  # Absurd lange Gesamtreisezeit ebenfalls raus:
+  max_total_travel_hours: 40
+  # Layover-Sanity: ein kurzer Zubringer innerhalb Thailands (BKK->USM)
+  # darf knapper sein als ein internationaler Umstieg.
+  min_layover_minutes_domestic_thailand: 90
+  min_layover_minutes_international: 120
+  max_layover_hours: 14
+
+  # Interpretation des Preis-Feldes der Flugquelle:
+  #   true  -> gelieferter Preis ist Gesamtpreis fuer alle Pax
+  #   false -> gelieferter Preis ist pro Person
+  price_is_total_for_all_pax: false   # Google-Flights-Gruppensuche liefert nichts -> 1-Pax-Suche, Preis wird x8 hochgerechnet
+
+  seat_class: economy            # economy | premium-economy | business | first
+
+  # 1 Aufgabegepaeckstueck in jede Suche einrechnen + reine Basic-Economy-
+  # Tarife ausblenden - nur Tarife mit Gepaeck vergleichen.
+  checked_bags_included_in_search: 1
+  exclude_basic_economy: true
+
+  # Airlines, die IMMER ausgeschlossen werden (Teilstring-Match).
+  excluded_airlines: ["Austrian"]
+  # Golfstaaten-Carrier (Qatar Airways, Etihad, Emirates, Saudia, Gulf Air,
+  # Oman Air, Royal Jordanian) wegen der Lage im Nahen Osten optional raus-
+  # werfen. Noch nicht entschieden -> Default aus, einfach auf true stellen.
+  exclude_gulf_carriers: false
+
+# --- Quellen an/aus + Optionen --------------------------------------------
+sources:
+  flights:
+    enabled: true
+    # Round-Trip (Hin+Rueck als EIN Ticket) = real buchbarer Preis,
+    # klar guenstiger als zwei Einzelrichtungs-Tickets.
+    roundtrip: true
+    # Multi-City: Hinflug-Airport != Rueckflug-Airport, trotzdem EIN Ticket
+    # (z.B. hin ab Zuerich, zurueck nach Muenchen). Das ist die saubere
+    # Antwort auf "Hin/Rueck muessen nicht gleich sein" - statt zwei
+    # Einzeltickets zu summieren.
+    multicity: true
+    # false = nur primaeres Datumspaar fuer die Multi-City-Airport-Matrix
+    # (spart Requests). true = WIRKLICH alle Kombinationen: alle Hin-/Rueck-
+    # Airport-Paare x alle Datumspaare (bei 4 Flughaefen: 12 Paare x 2
+    # Datumspaare = 24 Abfragen). Kein Zeitdruck bei 6h-Takt -> true ist ok.
+    multicity_all_date_pairs: false
+    # primp liefert fuer Multi-City reproduzierbar keine Daten - Playwright-
+    # Fallback nutzt stattdessen einen echten Browser (langsamer, aber
+    # funktioniert).
+    multicity_browser_fallback: true
+    # Einzelrichtungs-Legs: NIE eine eigene Buchungsoption, liefern aber die
+    # Rueckflug-Referenz neben dem gewaehlten Round-Trip (Google zeigt beim
+    # Round-Trip selbst nur den Hinflug im Detail).
+    oneway_legs: true
+    oneway_legs_all_dates: false
+    retry_blocked_after_seconds: 75
+    # Sekundenpause (min..max, zufaellig) zwischen Google-Flights-Requests,
+    # um Blocks zu vermeiden.
+    request_delay_seconds: [10, 22]
+    language: de
+    # Gruppen-Check: die guenstigsten Kombinationen zusaetzlich ECHT mit
+    # der vollen Personenzahl abfragen statt nur 1-Pax hochzurechnen.
+    group_check: true
+    # Faustregel: mindestens Anzahl-Abflughaefen x Anzahl-echter-date_pairs,
+    # sonst bleiben ganze Kombinationen ungeprueft (hier: 4 x 4 = 16).
+    group_check_top_n: 16
+  # ITA Matrix (Googles Fare-Research-Tool) - NICHT buchbar, daher eine
+  # eigene Recherche-Kategorie im Dashboard statt Teil der Flugliste.
+  ita_matrix:
+    enabled: true
+    request_delay_seconds: [15, 30]
+  hotels:
+    # CHECK24: der GENAUE Live-Preis - sucht je Zimmergroesse einzeln
+    # (1 Zimmer/3 Erwachsene, 1 Zimmer/2 Erwachsene, ...) und summiert die
+    # guenstigsten Treffer x Anzahl Zimmer dieser Groesse. Playwright, bewusst
+    # langsam (20-45s Pause zwischen den Teil-Suchen - unkritisch bei 4-6h-Takt).
+    check24:            { enabled: true }
+    check24_delay_seconds: [20, 45]
+    # Google Hotels - schneller Floor-Richtwert (kein Browser, EIN Request,
+    # aggregiert ~20 OTAs), ignoriert aber die Belegung -> nur Untergrenze.
+    google_hotels:      { enabled: true }
+    # Weitere Live-Deep-Link-Quellen, gleicher Zimmergroessen-Split:
+    santiburi_official: { enabled: true }   # Direktpreis, keine OTA-Marge
+    lastminute:         { enabled: true }
+    # Expedia zeigt bei Playwright zuverlaessig einen Slider-Captcha (Bot-
+    # Erkennung) - wird NICHT geloest. Deep-Link im Dashboard funktioniert
+    # trotzdem zum manuellen Aufrufen (dort dann Corporate-Rabatt abziehen).
+    expedia:            { enabled: false }
+    # Fallback (fragil wegen Anti-Bot) - bei Bedarf aktivieren:
+    booking:            { enabled: false }
+  packages:
+    # CHECK24 Pauschalreisen (Flug+Hotel) - gleicher Zimmergroessen-Split
+    # wie beim Hotelvergleich, ZRH nicht verfuegbar (nur deutsche Abflughaefen).
+    check24:            { enabled: true }
+    check24_delay_seconds: [20, 45]
+    tui:         { enabled: true }
+    dertour:     { enabled: true }
+    alltours:    { enabled: true }
+    rewe_reisen: { enabled: true }
+    sonnenklar:  { enabled: true }
+  # Gemeinsame Playwright-Einstellungen fuer alle Scraper
+  scraper:
+    headless: true
+    nav_timeout_seconds: 45
+    locale: "de-DE"
+    screenshot_on_error: true    # -> artifacts/<source>_<ts>.png
+
+# --- Scheduler ------------------------------------------------------------
+schedule:
+  enabled: true
+  every_hours: 6                 # Preis-Check-Intervall
+  run_on_start: false            # sofort einmal laufen beim Start?
+  jitter_seconds: 300
+
+# --- Trend-Ampel --------------------------------------------------------
+trend:
+  # Vergleich des aktuellen Preises mit dem Mittel der letzten N Checks.
+  window_checks: 20
+  # Abweichung vom Mittel, ab der es "guenstig"/"teuer" heisst.
+  cheap_threshold_pct: 4        # aktuell <= Mittel - 4%   -> gruen
+  expensive_threshold_pct: 4    # aktuell >= Mittel + 4%   -> rot
+
+# --- Benachrichtigungen ------------------------------------------------
+alerts:
+  enabled: true
+  # Absolute Schwellen (Gesamtpreis fuer 8 Pax, in trip.currency).
+  # Unterschreitung -> genau eine Mail/Push pro neuer Bestmarke.
+  # Ausgangswerte auf Basis erster Live-Checks (Sept. 2026) - nach ein
+  # paar echten Durchlaeufen anhand des Preisverlaufs im Dashboard nachjustieren.
+  thresholds:
+    flight_total: 8000          # Round-Trip/Multi-City, 8 Pax
+    hotel_total: 8000           # 3 Zimmer x 13 Naechte (CHECK24-Aufteilung)
+    separate_total: 16000       # Flug + Hotel getrennt gebucht
+    package_total: 20000        # guenstigste Pauschalreise (noch keine Daten)
+  # Nicht oefter als alle X Stunden dieselbe Kategorie alarmieren.
+  cooldown_hours: 12
+  channels: [email, ntfy]       # was tatsaechlich genutzt wird, haengt an .env

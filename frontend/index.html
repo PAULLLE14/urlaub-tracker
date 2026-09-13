@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Urlaub-Tracker &middot; Koh Samui 2027</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,380..680&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#9992;</text></svg>" />
+</head>
+<body>
+  <header>
+    <h1>Urlaub-Tracker</h1>
+    <span class="meta" id="tripLabel">&hellip;</span>
+    <span id="countdown" hidden><span class="num" id="countdownNum">&ndash;</span><span class="lbl" id="countdownLbl">bis Thailand</span></span>
+    <span class="spacer"></span>
+    <span class="meta" id="lastRun">letzter Check: &ndash;</span>
+    <span class="meta" id="nextRun">n&auml;chster: &ndash;</span>
+    <button id="btnCheck" class="secondary">Jetzt pr&uuml;fen</button>
+  </header>
+
+  <main>
+    <div id="error"></div>
+
+    <section>
+      <h2>Trend-Ampel</h2>
+      <div class="grid3" id="verdictCards"></div>
+    </section>
+
+    <section>
+      <h2>Einzelbuchung vs. Pauschalreise (8 Personen, 3 Villen, 14 N&auml;chte)</h2>
+      <div class="versus" id="versus">
+        <div class="side" id="sideSeparate">
+          <div class="label muted">Flug + Hotel getrennt</div>
+          <div class="amount" id="sepAmount">&ndash;</div>
+          <div class="delta" id="sepBreak"></div>
+        </div>
+        <div class="vs">vs</div>
+        <div class="side" id="sidePackage">
+          <div class="label muted">g&uuml;nstigste Pauschalreise</div>
+          <div class="amount" id="pkgAmount">&ndash;</div>
+          <div class="delta" id="pkgInfo"></div>
+        </div>
+      </div>
+      <p class="small muted" id="verdictNotes" style="margin-top:12px"></p>
+    </section>
+
+    <section>
+      <h2>G&uuml;nstigste zusammenh&auml;ngende Buchung (unabh&auml;ngig vom Hotel)</h2>
+      <div id="cheapestFlight"></div>
+    </section>
+
+    <section>
+      <h2>Historischer Preisverlauf</h2>
+      <div class="chart-toggles" id="chartToggles"></div>
+      <canvas id="chart" height="90"></canvas>
+    </section>
+
+    <section>
+      <h2>Alle zusammenh&auml;ngenden Buchungen</h2>
+      <p class="small muted" style="margin-top:-6px">Nur Round-Trip (gleicher Flughafen) und Multi-City (Hin/R&uuml;ck unterschiedlich, trotzdem ein Ticket). Einzelrichtungs-Tickets werden nicht angezeigt. Die g&uuml;nstigsten Kombinationen werden zus&auml;tzlich mit der echten Personenzahl (8) gegengepr&uuml;ft (Badge <span class="tag teal">Gruppe gepr&uuml;ft</span>) &ndash; nicht best&auml;tigte 1-Pax-Hochrechnungen werden ausgeschlossen.</p>
+      <div class="filters">
+        <select id="fDirection">
+          <option value="">Round-Trip + Multi-City</option>
+          <option value="round_trip">nur Round-Trip</option>
+          <option value="multi_city">nur Multi-City</option>
+        </select>
+        <select id="fOrigin"><option value="">alle Abflugh&auml;fen</option></select>
+        <input id="fAirline" placeholder="Airline enth&auml;lt&hellip;" />
+        <select id="fStops">
+          <option value="">Stopps: alle</option>
+          <option value="0">0 (direkt)</option>
+          <option value="1">&le; 1</option>
+          <option value="2">&le; 2</option>
+        </select>
+        <select id="fSort">
+          <option value="price">Sortierung: Preis gesamt</option>
+          <option value="price_per_person">Preis p.P.</option>
+          <option value="duration">Reisezeit</option>
+          <option value="stops">Stopps</option>
+          <option value="departure">Abflugzeit</option>
+          <option value="origin">Abflughafen</option>
+          <option value="airline">Airline</option>
+        </select>
+        <button id="fDescBtn" class="secondary" type="button" title="Sortierrichtung umkehren">&uarr; aufsteigend</button>
+        <label class="small muted"><input type="checkbox" id="fExcluded" checked /> ausgefilterte zeigen</label>
+        <label class="small muted" title="1-Pax-Suche x8 hochgerechnet, nicht real fuer die Gruppe gesucht - standardmaessig ausgeblendet, sobald fuer diese Route/Termin ein echt geprueft ist"><input type="checkbox" id="fEstimates" /> Hochrechnungen zeigen (wo echter Preis vorliegt)</label>
+      </div>
+      <div class="table-wrap">
+        <table id="flightsTable">
+          <thead><tr>
+            <th data-sort="price">Preis 8&nbsp;Pax</th>
+            <th data-sort="price_per_person">p.P.</th>
+            <th></th>
+            <th>Typ</th>
+            <th data-sort="origin">Route</th>
+            <th data-sort="stops">Stopps</th>
+            <th class="hide-narrow">Layover</th>
+            <th data-sort="duration">Reisezeit</th>
+            <th data-sort="departure">Abflug</th>
+            <th class="hide-narrow">Airlines</th>
+            <th class="hide-narrow">Segmente</th>
+            <th class="hide-narrow">erfasst</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>ITA Matrix &ndash; Recherche-Referenz <span class="tag">nicht direkt buchbar</span></h2>
+      <p class="small muted" style="margin-top:-6px">Googles Fare-Research-Tool findet manchmal Routings/Tarife, die die normale Flugsuche nicht zeigt &ndash; man kann dort aber nichts kaufen. 1&nbsp;Pax gesucht, x&nbsp;Personenzahl hochgerechnet (gleiche Methode wie bei den buchbaren Fl&uuml;gen).</p>
+      <div class="table-wrap">
+        <table id="itaMatrixTable">
+          <thead><tr>
+            <th>Route</th><th>Datum</th><th>Preis 8&nbsp;Pax (hochgerechnet)</th><th>p.P.</th><th>Links</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Hotel &ndash; Santiburi Koh Samui</h2>
+      <div class="table-wrap">
+        <table id="hotelsTable" class="stack-narrow">
+          <thead><tr>
+            <th>Quelle</th><th>Gesamt (3 Villen &times; 14 N.)</th><th>pro Nacht</th>
+            <th>Zimmer/G&auml;ste</th><th>Status</th><th>erfasst</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Pauschalreisen</h2>
+      <div class="table-wrap">
+        <table id="packagesTable" class="stack-narrow">
+          <thead><tr>
+            <th>Anbieter</th><th>Gesamt 8&nbsp;Pax</th><th>Hotel</th>
+            <th>Abflug</th><th>Verpflegung</th><th>Status</th><th>erfasst</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Status</h2>
+      <div class="health-summary" id="healthSummary"></div>
+      <details class="tech-details">
+        <summary>Technische Details</summary>
+        <div class="health" id="health"></div>
+        <div id="manualCheckBox" hidden style="margin-top:14px">
+          <p class="small muted" style="margin:0 0 8px">Diese Routen konnten gerade nicht automatisch geladen werden:</p>
+          <div id="manualCheckList" class="small"></div>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    Urlaub-Tracker &middot; Flugdaten via fast-flights (inoffiziell, best effort) &middot;
+    Hotel/Pauschal via Playwright-Scraping &middot; leere Ergebnisse f&uuml;r Mai&nbsp;2027 sind normal.
+  </footer>
+
+  <script src="/vendor/chart.umd.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

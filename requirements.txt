@@ -1,0 +1,30 @@
+# --- Web / API ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+jinja2==3.1.5
+
+# --- Data / DB ---
+SQLAlchemy==2.0.36
+pydantic==2.10.4
+pydantic-settings==2.7.1
+PyYAML==6.0.2
+psycopg[binary]==3.2.3          # only used when DATABASE_URL points at Postgres
+
+# --- Scheduling ---
+APScheduler==3.11.0
+
+# --- HTTP / notifications ---
+httpx==0.28.1
+
+# --- Flight source (unofficial Google Flights) ---
+fast-flights==3.1.0
+
+# --- Airport metadata (offline: lat/lon/timezone per IATA code) ---
+airportsdata==20241001
+
+# --- Scraping (hotels + package tour portals) ---
+playwright==1.49.1
+tenacity==9.0.0
+
+# --- Dev / tests ---
+pytest==8.3.4

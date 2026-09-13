@@ -1,0 +1,27 @@
+# Caddy: HTTPS (automatisch via Let's Encrypt) + Basic-Auth vor dem Dashboard.
+# Das Dashboard selbst hat KEINE Anmeldung - unbedingt hier absichern
+# (oder Firewall / Tailscale / VPN).
+#
+# 1) Domain unten eintragen (A-Record auf die Server-IP zeigen lassen).
+# 2) Passwort-Hash erzeugen:   caddy hash-password --plaintext 'DEIN_PASSWORT'
+#    und unten bei basic_auth einsetzen.
+# 3) caddy run  (oder als Dienst: siehe deploy/README.md)
+
+tracker.example.com {
+    encode zstd gzip
+
+    basic_auth {
+        # Benutzername  Bcrypt-Hash (aus: caddy hash-password)
+        paul $2a$14$ERSETZ_MICH_DURCH_DEN_ECHTEN_HASH
+    }
+
+    reverse_proxy 127.0.0.1:8000
+}
+
+# Nur-HTTP-Variante (ohne Domain, z.B. hinter VPN) - dann obiges auskommentieren:
+# :8080 {
+#     basic_auth {
+#         paul $2a$14$ERSETZ_MICH
+#     }
+#     reverse_proxy 127.0.0.1:8000
+# }

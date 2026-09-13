@@ -1,0 +1,36 @@
+services:
+  tracker:
+    build: .
+    image: urlaub-tracker:latest
+    container_name: urlaub-tracker
+    restart: unless-stopped
+    ports:
+      # nur lokal gebunden - davor gehoert ein Reverse-Proxy mit Auth
+      # (siehe deploy/Caddyfile). Fuer reinen Localhost-Betrieb ok so.
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./artifacts:/app/artifacts
+    # Standard: interner APScheduler (schedule.enabled: true in config.yaml).
+    # Fuer System-Cron stattdessen: schedule.enabled: false + Host-Crontab:
+    #   0 */4 * * * docker exec urlaub-tracker python -m app.check --quiet
+
+  # --- Optional: eigene Postgres-Instanz statt SQLite -----------------------
+  # db:
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: tracker
+  #     POSTGRES_PASSWORD: change-me
+  #     POSTGRES_DB: urlaub_tracker
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  # -> in .env dann:
+  #    DATABASE_URL=postgresql+psycopg://tracker:change-me@db:5432/urlaub_tracker
+
+# volumes:
+#   pgdata:

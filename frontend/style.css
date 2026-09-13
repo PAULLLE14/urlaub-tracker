@@ -1,0 +1,271 @@
+:root {
+  /* Warme Cream-Basis statt Dunkel-Dashboard-Grau - inspiriert vom
+     "Claude" DESIGN.md-System (getdesign.md/claude), das genau die
+     Terracotta+Cream-Kombination als bewusste Abgrenzung von den ueblichen
+     kuehlen Blau/Slate-KI-Oberflaechen dokumentiert. Angepasst um Petrol/Teal
+     als zweite Akzentfarbe (Ozean-/Koh-Samui-Bezug statt reiner Zufallswahl). */
+  --canvas: #faf9f5;
+  --surface-soft: #f5f0e8;
+  --surface-card: #efe9de;
+  --surface-strong: #e8e0d2;
+  --ink: #141413;
+  --body: #3d3d3a;
+  --muted: #6c6a64;
+  --muted-soft: #8e8b82;
+  --hairline: #e6dfd8;
+  --hairline-soft: #ebe6df;
+
+  --coral: #cc785c;         /* primaere Akzentfarbe - sparsam einsetzen */
+  --coral-active: #a9583e;
+  --coral-soft: #f1ded4;
+  --teal: #2f8f82;          /* Lagune/Ozean - zweiter Akzent, Hotel-Kategorie */
+  --teal-soft: #dcefeb;
+  --amber: #b8791f;
+  --amber-soft: #f3e3c9;
+  --success: #3f8a58;
+  --warning: #b8791f;
+  --error: #a83f34;
+  --on-coral: #fff8f3;
+
+  --shadow: 0 1px 2px rgba(20,20,19,.06);
+  --r-xs: 4px; --r-sm: 6px; --r-md: 8px; --r-lg: 12px; --r-pill: 9999px;
+}
+
+/* Automatisches Dunkel-Design ueber prefers-color-scheme ist bewusst AUS
+   (12.09.26, Nutzer-Feedback: die helle Cream/Koralle-Optik "sah viel mehr
+   urlauberisch aus" als die automatische Dunkel-Variante auf dem Handy) -
+   das warme Urlaubs-Design soll immer das ist, was man sieht. Die
+   Dunkel-Palette bleibt fuer einen moeglichen spaeteren manuellen Umschalter
+   erhalten (:root[data-theme="dark"]), wird aber nirgends automatisch
+   gesetzt.*/
+:root[data-theme="dark"] {
+  --canvas: #17140f; --surface-soft: #1d1913; --surface-card: #221d16;
+  --surface-strong: #2a231a; --ink: #f3ece0; --body: #d8cfc0;
+  --muted: #a4967d; --muted-soft: #8e8172;
+  --hairline: #382f22; --hairline-soft: #2c2519;
+  --coral-soft: #3a2a20; --teal-soft: #1c322e; --amber-soft: #3a2e18;
+  --on-coral: #1a0f06;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--canvas); color: var(--ink);
+  font: 15px/1.55 "Inter", -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+a { color: var(--teal); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Zahlen (Preise, Zeiten, IATA-Codes, Timestamps) bekommen eine echte
+   Tabellenschrift - liest sich wie ein Kursbrett, nicht wie Systemschrift.
+   Bewusst NUR auf Zahlen-Zellen (.mono/.amount/.big), nicht auf jede
+   Tabellenzelle - sonst wirkt auch Fliesstext wie Code. */
+.mono, .amount, .big, .card .big, .versus .amount {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ueberschriften & grosse Preise: Serif mit negativem Tracking statt
+   Inter/System - der literarische Charakter ist der Marken-Unterschied. */
+h1, .big, .card .big, .versus .amount, .display {
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+  font-weight: 480;
+  letter-spacing: -0.02em;
+}
+
+header {
+  position: relative;
+  display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center;
+  padding: 18px 22px; border-bottom: 1px solid var(--hairline); background: var(--surface-soft);
+  overflow: hidden;
+}
+/* Duenne Wellenlinie als dezenter Koh-Samui-/Ozean-Bezug - Linienkunst statt
+   Stock-Palmen-Clipart, siehe Designprinzip "minimal, hand-drawn, nie
+   fotorealistisch". Sehr niedrige Deckkraft, rein dekorativ. */
+header::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0; height: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='10' viewBox='0 0 120 10'%3E%3Cpath d='M0 5 Q 15 0 30 5 T 60 5 T 90 5 T 120 5' fill='none' stroke='%232f8f82' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: repeat-x; background-size: 120px 10px;
+  opacity: .35; pointer-events: none;
+}
+header h1 { font-size: 21px; margin: 0; }
+header .meta { color: var(--muted); font-size: 12px; }
+header .spacer { flex: 1; }
+
+/* Countdown - das "worauf man sich freuen kann"-Element. Serif-Zahl in
+   Koralle, damit es als kleines Ritual auffaellt statt als weiteres
+   KPI-Kaestchen. */
+#countdown {
+  display: flex; align-items: baseline; gap: 7px;
+  background: var(--coral-soft); border: 1px solid var(--coral); border-radius: var(--r-pill);
+  padding: 5px 14px 5px 12px; white-space: nowrap;
+}
+#countdown .num {
+  font-family: "Fraunces", Georgia, serif; font-weight: 560; font-size: 19px;
+  color: var(--coral-active); letter-spacing: -0.02em;
+}
+#countdown .lbl { font-size: 11.5px; color: var(--coral-active); }
+
+button {
+  background: var(--coral); color: var(--on-coral); border: 0; border-radius: var(--r-md);
+  padding: 9px 16px; font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit;
+}
+button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--hairline); }
+button:hover { background: var(--coral-active); }
+button.secondary:hover { border-color: var(--muted); background: var(--surface-card); }
+button:disabled { opacity: .5; cursor: default; }
+
+main { padding: 22px; max-width: 1240px; margin: 0 auto; display: grid; gap: 20px; min-width: 0; }
+section {
+  background: var(--canvas); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  padding: 18px 20px; box-shadow: var(--shadow); min-width: 0;
+}
+section h2 {
+  margin: 0 0 14px; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; border-bottom: 1px solid var(--hairline); padding-bottom: 10px;
+}
+
+/* Mobile-first: Grids stapeln standardmaessig, Mehrspaltigkeit ist die
+   Ausnahme (ab min-width), nicht der Default, der erst per @media
+   zurueckgebaut wird - vermeidet, dass ein zu breites min-content die
+   Layout-Viewport-Breite auf Handys hochzieht. */
+.grid3, .grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 720px) { .grid2 { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px) { .grid3 { grid-template-columns: repeat(3, 1fr); } }
+#cheapestFlight { display: grid; gap: 14px; }
+
+.card {
+  background: var(--surface-card); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  padding: 15px 16px; min-width: 0;
+}
+.card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.card .big { font-size: 27px; line-height: 1.15; margin: 6px 0; }
+.card .sub { font-size: 12px; color: var(--muted); }
+
+/* Status-Tags: umrandet statt vollflaechig gefuellter Pille - weniger
+   "Badge-Suppe", liest sich eher wie ein Stempel als wie ein Sticker. */
+.pill {
+  display: inline-block; padding: 2px 8px; border-radius: var(--r-sm); font-size: 11px;
+  font-weight: 700; letter-spacing: .02em; border: 1px solid currentColor; background: transparent;
+}
+.pill.guenstig { color: var(--success); }
+.pill.teuer    { color: var(--error); }
+.pill.durchschnitt { color: var(--amber); }
+.pill.unbekannt { color: var(--muted); }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.dot.guenstig { background: var(--success); }
+.dot.teuer { background: var(--error); }
+.dot.durchschnitt { background: var(--amber); }
+.dot.unbekannt { background: var(--muted); }
+
+.versus { display: grid; grid-template-columns: 1fr; gap: 14px; align-items: stretch; }
+@media (min-width: 640px) { .versus { grid-template-columns: 1fr auto 1fr; } }
+.versus .side { background: var(--surface-card); border: 1px solid var(--hairline); border-radius: var(--r-lg); padding: 20px 16px; text-align: center; }
+.versus .side.win { border-color: var(--coral); box-shadow: 0 0 0 1px var(--coral) inset; background: var(--coral-soft); }
+.versus .vs {
+  align-self: center; color: var(--muted); font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.versus .amount { font-size: 27px; }
+.versus .delta { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* Nutzer-Fund 13.09.26: breite Tabellen (Fluege mit Segmente-/Airline-Spalte)
+   wurden bei width:100% vom Browser in die Containerbreite gepresst - lange
+   Zellinhalte (Segmente, Airline-Listen) brachen dadurch mehrzeilig um und
+   rissen die Zeile riesig auseinander, obwohl links noch viel Leerraum war.
+   width:max-content + min-width:100% laesst die Tabelle so breit werden wie
+   der Inhalt braucht; .table-wrap{overflow-x:auto} macht den Rest per
+   horizontalem Scrollen statt per Zeilen-Explosion sichtbar. */
+table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--hairline-soft); vertical-align: top; }
+th {
+  color: var(--muted); font-weight: 700; cursor: pointer; user-select: none; white-space: nowrap;
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+}
+th:hover { color: var(--ink); }
+tr.excluded { opacity: .48; }
+tr.excluded td .reason { color: var(--error); font-size: 11px; }
+.table-wrap { overflow-x: auto; max-width: 100%; }
+/* Auf schmalen Screens verstecken sich Detail-Spalten (Layover, Airlines,
+   Segmente, erfasst) - die trieben sonst per table-Zeilenhoehe (alle Zellen
+   einer Zeile teilen die hoechste) die kompakten ersten Spalten (Preis,
+   Route, Stopps) auseinander, weil die "Segmente"-Zelle weit ausserhalb des
+   sichtbaren Bereichs mehrzeilig umbrach. Ueber horizontales Scrollen der
+   Tabelle bleiben sie erreichbar, sind aber nicht mehr Pflicht-Ballast. */
+@media (max-width: 760px) {
+  .hide-narrow { display: none; }
+
+  /* Hotel-/Pauschalreise-Tabellen haben eine lange Freitext-Erstspalte
+     (Preisbasis, Zimmeraufteilung) - als starres Grid liessen die kurzen
+     Preis-/Status-Zellen daneben nur riesige Leerflaechen entstehen (gleiche
+     Ursache wie bei .hide-narrow, aber hier ist der lange Text selbst der
+     Inhalt, keine Nebensaechlichkeit zum Verstecken). Deshalb: Zeilen werden
+     zu gestapelten "Label: Wert"-Bloecken statt starrer Tabellenspalten. */
+  table.stack-narrow thead { display: none; }
+  table.stack-narrow, table.stack-narrow tbody, table.stack-narrow tr,
+  table.stack-narrow td { display: block; width: auto; }
+  table.stack-narrow { border: 0; }
+  table.stack-narrow tr {
+    border: 1px solid var(--hairline); border-radius: var(--r-md);
+    padding: 12px 14px; margin-bottom: 10px; background: var(--surface-card);
+  }
+  table.stack-narrow td { border-bottom: 0; padding: 3px 0; }
+  table.stack-narrow td:first-child { font-weight: 600; padding-bottom: 6px; }
+  table.stack-narrow td[data-label]::before {
+    content: attr(data-label);
+    display: block; color: var(--muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: .05em; margin-top: 6px;
+  }
+  table.stack-narrow td:empty { display: none; }
+}
+.filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.filters select, .filters input {
+  background: var(--surface-card); color: var(--ink); border: 1px solid var(--hairline);
+  border-radius: var(--r-md); padding: 7px 9px; font-size: 13px; font-family: inherit;
+}
+.seg { font-size: 12px; color: var(--muted); }
+.seg strong { color: var(--ink); font-family: "JetBrains Mono", ui-monospace, monospace; }
+.right { text-align: right; }
+.nowrap { white-space: nowrap; }
+.health { display: flex; flex-wrap: wrap; gap: 10px; }
+.health .h { background: var(--surface-card); border: 1px solid var(--hairline); border-radius: var(--r-md); padding: 9px 13px; font-size: 12px; }
+.health .h.bad { border-color: var(--error); background: color-mix(in srgb, var(--error) 8%, var(--surface-card)); }
+.health .h.warn { border-color: var(--amber); background: var(--amber-soft); }
+
+/* Kurze, freundliche Statuszeilen fuer den Normalo (siehe loadHealth in
+   app.js) - Rohdaten/Fehlermeldungen stecken nur noch im aufklappbaren
+   "Technische Details"-Block darunter. */
+.health-summary { display: flex; flex-direction: column; gap: 6px; }
+.h-line { font-size: 14px; color: var(--body); display: flex; gap: 8px; align-items: baseline; }
+.tech-details { margin-top: 14px; }
+.tech-details summary {
+  cursor: pointer; font-size: 12px; color: var(--muted); user-select: none;
+  width: fit-content;
+}
+.tech-details summary:hover { color: var(--ink); }
+.tech-details[open] summary { margin-bottom: 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.tag {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: var(--r-sm);
+  border: 1px solid var(--hairline); color: var(--muted);
+}
+.tag.teal { color: var(--teal); border-color: var(--teal); }
+.tag.coral { color: var(--coral-active); border-color: var(--coral); }
+.tag.amber { color: var(--amber); border-color: var(--amber); }
+.chart-toggles { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.chart-toggles label { cursor: pointer; }
+#error { background: color-mix(in srgb, var(--error) 10%, var(--canvas)); border: 1px solid var(--error); color: var(--error); padding: 10px 14px; border-radius: var(--r-md); display: none; }
+footer { text-align: center; color: var(--muted-soft); font-size: 11px; padding: 22px; }
+
+/* Fallback fuer sehr schmale Screens, falls einzelne Inhalte (lange
+   Airline-Listen, IATA-Ketten) trotzdem nicht umbrechen wollen. */
+@media (max-width: 480px) {
+  header { padding: 14px 16px; }
+  main { padding: 14px; gap: 16px; }
+  section { padding: 14px; }
+  .versus .amount, .card .big { font-size: 23px; }
+}

@@ -1,0 +1,28 @@
+# systemd-Unit fuer den Betrieb OHNE Docker (venv direkt auf dem Server).
+# Ablage:  /etc/systemd/system/urlaub-tracker.service
+# Danach:  sudo systemctl daemon-reload && sudo systemctl enable --now urlaub-tracker
+# Logs:    journalctl -u urlaub-tracker -f
+
+[Unit]
+Description=Urlaub-Tracker (Flug- & Hotel-Preistracker Koh Samui 2027)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tracker
+Group=tracker
+WorkingDirectory=/opt/urlaub-tracker
+Environment=TRACKER_CONFIG=/opt/urlaub-tracker/config.yaml
+EnvironmentFile=/opt/urlaub-tracker/.env
+ExecStart=/opt/urlaub-tracker/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+# leichtes Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/urlaub-tracker/data /opt/urlaub-tracker/logs /opt/urlaub-tracker/artifacts
+
+[Install]
+WantedBy=multi-user.target
