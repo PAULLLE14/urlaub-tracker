@@ -214,9 +214,9 @@ class FlightsSourceCfg(BaseModel):
     group_check_top_n: int = 6
     # A3 (externe Review 14.09.26): Multi-City bekam bisher NIE einen echten
     # Gruppen-Check, eine 1-Pax-Hochrechnung konnte unbestaetigt gegen
-    # bestaetigte Round-Trip-Preise gewinnen. Klein gehalten (2-Klick-Browser-
-    # Weg ist teurer als der Round-Trip-Weg).
-    multicity_group_check_top_n: int = 3
+    # bestaetigte Round-Trip-Preise gewinnen. 14.09.26 Nutzervorgabe: kein
+    # Top-N-Limit mehr - ALLE Multi-City-Kombinationen werden echt geprueft
+    # (keine Schaetzungen, nur harte Pruefungen, wie bei Round-Trip auch).
     # primp (reiner HTTP-Request) bekommt fuer Multi-City-Routen zu USM
     # reproduzierbar keine Daten (verifiziert 12.09.26, siehe
     # sources/flights_multicity_browser.py) - dieser Schalter aktiviert

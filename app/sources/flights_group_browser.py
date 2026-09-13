@@ -8,10 +8,10 @@ einen BRUCHTEIL der echten Ergebnisse. Live reproduziert: eine echte
 9.200 EUR) - ein echter Browser (dieselbe Suche, dieselbe Route/Datum) zeigt
 SOFORT 2 Treffer, darunter Qatar Airways ab 7.939 EUR (den tatsaechlich
 guenstigsten bestaetigten Preis fuer 8 Personen). Deshalb: fuer die
-``group_check_top_n`` guenstigsten Round-Trip-Kombinationen UND die
-``multicity_group_check_top_n`` guenstigsten Multi-City-Kombinationen (siehe
-``sources/flights.py`` ``collect_flights()``, das nur noch die Kandidaten
-auswaehlt) wird hier ein echter Browser genutzt.
+``group_check_top_n`` guenstigsten Round-Trip-Kombinationen UND ALLE
+Multi-City-Kombinationen (siehe ``sources/flights.py`` ``collect_flights()``,
+das nur noch die Kandidaten auswaehlt) wird hier ein echter Browser genutzt -
+keine Schaetzungen, nur harte Pruefungen (14.09.26 Nutzervorgabe).
 
 14.09.26 (externe Code-Review) - drei Korrekturen:
 
@@ -47,9 +47,10 @@ verdoppelt:
 
 A3 (Multi-City ohne Gruppen-Check): ``flights_multicity_browser.py`` lieferte
 bisher nur ``pax_mode="estimated"``, das konkurrierte im Verdict direkt mit
-bestaetigten Round-Trip-Preisen. Jetzt bekommen die
-``multicity_group_check_top_n`` guenstigsten Multi-City-Kandidaten ebenfalls
-eine echte 8-Pax-Suche (ueber ``flights_multicity_browser._search_one``).
+bestaetigten Round-Trip-Preisen. Jetzt bekommt JEDE Multi-City-Kombination
+eine echte 8-Pax-Suche (ueber ``flights_multicity_browser._search_one``) -
+kein Top-N-Limit (14.09.26 Nutzervorgabe: keine Schaetzungen, nur harte
+Pruefungen).
 
 B (Blockrisiko): der Split-Check (4-Pax-Suche) laeuft nur noch, wenn
 Preis(8)/8 tatsaechlich deutlich (>5%) ueber dem 1-Pax-Schaetzpreis liegt -
@@ -129,8 +130,13 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
 
     rt_best = _best_by_key([o for o in offers if o.trip_type == "round_trip" and not o.excluded])
     rt_keys = sorted(rt_best, key=lambda k: rt_best[k].price_total)[: fs.group_check_top_n]
+    # 14.09.26 Nutzervorgabe: kein Top-N-Limit mehr fuer Multi-City - keine
+    # Schaetzungen, nur harte Pruefungen (gleiche Begruendung wie beim
+    # entfernten Ueberspringen bei Round-Trip: 1-Pax-Preis und 8-Pax-Bucket
+    # korrelieren nicht zuverlaessig genug). ALLE Multi-City-Kombinationen
+    # bekommen eine echte 8-Pax-Suche.
     mc_best = _best_by_key([o for o in offers if o.trip_type == "multi_city" and not o.excluded])
-    mc_keys = sorted(mc_best, key=lambda k: mc_best[k].price_total)[: fs.multicity_group_check_top_n]
+    mc_keys = sorted(mc_best, key=lambda k: mc_best[k].price_total)
 
     group_checked = split_checked = 0
     errors: list[str] = []
