@@ -139,13 +139,21 @@ function renderVersus(verdict, totals) {
   let hotelLink = (h && h.deep_link)
     ? `<a href="${h.deep_link}" target="_blank" rel="noopener">Hotel (${h.source}) ${money(totals.hotel_total)}</a>`
     : `Hotel ${money(totals.hotel_total)}`;
-  if (h && h.per_room_size) {
-    const parts = Object.entries(h.per_room_size)
-      .filter(([, v]) => v && v.cheapest != null)
-      .map(([size, v]) => v.url
-        ? `<a href="${v.url}" target="_blank" rel="noopener">1 Zi./${size} Erw. ${money(v.cheapest)}</a>`
-        : `1 Zi./${size} Erw. ${money(v.cheapest)}`);
-    if (parts.length) hotelLink += ` <span class="small muted">(${parts.join(" · ")})</span>`;
+  // Nutzer-Fund 14.09.26: hier wurden bisher ALLE gesuchten Zimmergroessen
+  // aufgelistet (inkl. z.B. "1 Zi./1 Erw." aus der Preisermittlung), nicht
+  // nur die tatsaechlich gebuchte Aufteilung - sah aus wie Fantasiezahlen,
+  // die nicht zu den 8 Personen passen. Jetzt: nur raw.room_split (die
+  // wirklich gewaehlte Kombination), mit Anzahl je Zimmergroesse.
+  if (h && h.room_split && h.per_room_size) {
+    const parts = Object.entries(h.room_split).map(([size, count]) => {
+      const info = h.per_room_size[size] || {};
+      const price = info.cheapest != null ? money(info.cheapest) : "?";
+      const label = `${count}× (1 Zi./${size} Erw.) ${price}`;
+      return info.url
+        ? `<a href="${info.url}" target="_blank" rel="noopener">${label}</a>`
+        : label;
+    });
+    if (parts.length) hotelLink += ` <span class="small muted">(${parts.join(" + ")})</span>`;
   }
   $("#sepBreak").innerHTML = `${flightLink} + ${hotelLink}`;
 

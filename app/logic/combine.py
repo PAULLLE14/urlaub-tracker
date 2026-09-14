@@ -83,6 +83,7 @@ class Verdict:
                 "per_night": h.per_night, "deep_link": h.deep_link,
                 "is_reference": h.is_reference,
                 "per_room_size": (h.raw or {}).get("per_room_size"),
+                "room_split": (h.raw or {}).get("room_split"),
             },
             "package": None if not p else {
                 "operator": p.operator, "price_total": p.price_total,
