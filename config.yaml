@@ -61,6 +61,10 @@ trip:
     # Preisen (z.B. ein einzelner falsch niedriger Supplier-Preis) macht
     # weiterhin _drop_price_outliers() in check24.py.
     room_type_hint: ""
+    # Nutzervorgabe 14.09.26: nur diese zwei Zimmer-Aufteilungen vergleichen
+    # (nicht jede rechnerisch moegliche Partition) - "3 Villen" (2x3+1x2
+    # Personen) vs. "4 Doppelzimmer", falls die zufaellig guenstiger sind.
+    allowed_room_shapes: [[3, 3, 2], [2, 2, 2, 2]]
     # Feste Ziel-URLs der Buchungsseiten (Property-Seiten). Datum/Belegung
     # werden vom Scraper als Query-Parameter angehaengt.
     booking_url: "https://www.booking.com/hotel/th/santiburi-resort-koh-samui.html"

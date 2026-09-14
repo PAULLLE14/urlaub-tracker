@@ -50,6 +50,23 @@ def _to_counts(sizes: list[int]) -> dict[int, int]:
     return counts
 
 
+def explicit_allocations(shapes: list[list[int]], persons: int) -> list[dict[int, int]]:
+    """Wandelt explizit vorgegebene Zimmergroessen-Kombinationen (z.B.
+    ``HotelCfg.allowed_room_shapes``) in dasselbe {Groesse: Anzahl}-Format
+    wie ``candidate_allocations()`` um - Nutzervorgabe 14.09.26: nur
+    ausdruecklich sinnvolle Formen vergleichen (z.B. "3 Villen" vs. "4
+    Doppelzimmer"), nicht jede rechnerisch moegliche Partition (die
+    enthaelt auch unrealistische Formen wie "1 Person allein im Zimmer").
+    Shapes, deren Summe NICHT `persons` ergibt, werden uebersprungen
+    (Konfigurationsfehler - lieber ignorieren als falsch rechnen)."""
+    out = []
+    for shape in shapes:
+        if sum(shape) != persons:
+            continue
+        out.append(_to_counts(shape))
+    return out
+
+
 def candidate_allocations(persons: int, max_per_room: int,
                           min_per_room: int = 1) -> list[dict[int, int]]:
     """Alle sinnvollen Zimmer-Groessen-Verteilungen fuer `persons` Personen

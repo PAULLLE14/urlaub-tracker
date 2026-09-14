@@ -26,7 +26,7 @@ from urllib.parse import urlencode
 from ...config import Config
 from ...logging_setup import get_logger
 from ...offers import HotelOffer
-from ..room_split import candidate_allocations, cheapest_allocation
+from ..room_split import candidate_allocations, cheapest_allocation, explicit_allocations
 from ..scraper_base import browser_page, dismiss_consent, goto, parse_money, save_screenshot
 
 log = get_logger("source.santiburi")
@@ -131,7 +131,9 @@ async def fetch(cfg: Config) -> HotelOffer:
     t = cfg.trip
     checkin, checkout = t.hotel_checkin, t.hotel_checkout
     nights = (checkout - checkin).days
-    allocations = candidate_allocations(t.persons, t.max_persons_per_room)
+    allocations = (explicit_allocations(t.hotel.allowed_room_shapes, t.persons)
+                  if t.hotel.allowed_room_shapes
+                  else candidate_allocations(t.persons, t.max_persons_per_room))
 
     offer = HotelOffer(source=SOURCE, ok=False, price_total=None,
                        currency=t.currency, nights=nights, rooms=t.rooms,

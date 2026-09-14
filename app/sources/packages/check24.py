@@ -32,7 +32,7 @@ from urllib.parse import urlencode
 from ...config import Config
 from ...logging_setup import get_logger
 from ...offers import PackageOffer
-from ..room_split import candidate_allocations, cheapest_allocation
+from ..room_split import candidate_allocations, cheapest_allocation, explicit_allocations
 from ..scraper_base import browser_page, dismiss_consent, goto, parse_money, save_screenshot
 
 log = get_logger("source.check24_package")
@@ -103,7 +103,9 @@ async def fetch(cfg: Config) -> list[PackageOffer]:
     nights = (checkout - checkin).days
     # Alle sinnvollen Zimmer-Aufteilungen vergleichen statt einer festen
     # (13.09.26 Nutzervorgabe) - siehe hotels/check24.py fuer dasselbe Muster.
-    allocations = candidate_allocations(t.persons, t.max_persons_per_room)
+    allocations = (explicit_allocations(t.hotel.allowed_room_shapes, t.persons)
+                  if t.hotel.allowed_room_shapes
+                  else candidate_allocations(t.persons, t.max_persons_per_room))
     # CHECK24.de kennt nur deutsche Abflughaefen - ZRH (Schweiz) faellt raus.
     airports = [a for a in t.origin_airports if a != "ZRH"]
 

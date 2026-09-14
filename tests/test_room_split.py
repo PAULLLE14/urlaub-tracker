@@ -1,4 +1,9 @@
-from app.sources.room_split import candidate_allocations, cheapest_allocation, room_split
+from app.sources.room_split import (
+    candidate_allocations,
+    cheapest_allocation,
+    explicit_allocations,
+    room_split,
+)
 
 
 def test_room_split_baseline_unchanged():
@@ -43,3 +48,28 @@ def test_cheapest_allocation_falls_back_to_standard_split_when_cheaper():
 def test_cheapest_allocation_none_when_prices_missing():
     allocs = candidate_allocations(8, 3)
     assert cheapest_allocation(allocs, {}) is None
+
+
+def test_explicit_allocations_only_returns_given_shapes():
+    # Nutzervorgabe 14.09.26: nur "3 Villen" (2x3+1x2) und "4 Doppelzimmer"
+    # vergleichen, nicht jede rechnerisch moegliche Partition (z.B. keine
+    # 1-Personen-Einzelzimmer).
+    allocs = explicit_allocations([[3, 3, 2], [2, 2, 2, 2]], persons=8)
+    assert allocs == [{3: 2, 2: 1}, {2: 4}]
+
+
+def test_explicit_allocations_skips_shapes_with_wrong_sum():
+    # Konfigurationsfehler (Summe != persons) wird ignoriert statt falsch
+    # zu rechnen.
+    allocs = explicit_allocations([[3, 3, 2], [2, 2, 2]], persons=8)
+    assert allocs == [{3: 2, 2: 1}]
+
+
+def test_explicit_allocations_lets_4x2_win_when_cheaper():
+    # Live-Fund 14.09.26: bei diesen Preisen gewann tatsaechlich 4x2 (9.068)
+    # gegen 2x3+1x2 (9.603 = 2x3610+2383) im echten Lauf.
+    allocs = explicit_allocations([[3, 3, 2], [2, 2, 2, 2]], persons=8)
+    prices = {3: 3610.0, 2: 2267.0}
+    alloc, total = cheapest_allocation(allocs, prices)
+    assert alloc == {2: 4}
+    assert total == 2267.0 * 4

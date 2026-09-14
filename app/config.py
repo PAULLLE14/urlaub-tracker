@@ -41,6 +41,14 @@ class ReferenceOffer(BaseModel):
 class HotelCfg(BaseModel):
     name: str
     room_type_hint: str = ""
+    # Nutzervorgabe 14.09.26: nicht ALLE rechnerisch moeglichen Zimmer-
+    # Aufteilungen vergleichen (z.B. 1 Person allein im Zimmer ist fuer die
+    # Gruppe unrealistisch), sondern nur explizit sinnvolle Formen - z.B.
+    # [[3,3,2],[2,2,2,2]] = "3 Villen (2x3+1x2 Personen)" vs. "4 Doppel-
+    # zimmer". Jede innere Liste ist eine Zimmergroessen-Kombination, deren
+    # Summe genau ``trip.persons`` ergeben muss. Leer = altes Verhalten
+    # (room_split.candidate_allocations() generiert ALLE Partitionen).
+    allowed_room_shapes: list[list[int]] = []
     booking_url: str = ""
     expedia_url: str = ""
     official_url: str = ""
