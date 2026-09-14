@@ -196,15 +196,19 @@ sources:
   # eigene Recherche-Kategorie im Dashboard statt Teil der Flugliste.
   # Rechnet spuerbar langsamer als Google Flights (haeufig 25-40s je Suche).
   ita_matrix:
-    # 14.09.26: war kurzzeitig deaktiviert (fuer USM schien keine Route
-    # Daten zu liefern) - Nutzer-Fund: das lag am falschen Tab ("Complete
-    # Trips" statt "Individual Flights", siehe flights_ita_matrix.py
-    # Bugfix). Wieder aktiv.
-    enabled: true
+    # 14.09.26: Tab-Klick-Fix (siehe flights_ita_matrix.py) funktionierte
+    # interaktiv, im echten Headless-Betrieb auf dem Server lieferte JEDE
+    # Suche in CheckRun #15 trotzdem 0 Ergebnisse (~4x25-40s verschwendet) -
+    # vermutlich Bot-Erkennung/Headless-Unterschied, noch nicht geloest.
+    # Deaktiviert bis das geklaert ist, sonst nur verlorene Laufzeit.
+    enabled: false
     request_delay_seconds: [15, 30]
   flights_kayak:
-    # Zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26).
-    enabled: true
+    # Zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26). Live in
+    # CheckRun #15 auf dem Server: 0 Ergebnisse bei JEDER Suche (~50 Min
+    # verschwendet), obwohl interaktiv getestet funktionierend - vermutlich
+    # Bot-Erkennung/Headless-Unterschied. Deaktiviert bis geklaert.
+    enabled: false
     request_delay_seconds: [10, 22]
   hotels:
     # CHECK24: der GENAUE Live-Preis - sucht je Zimmergroesse einzeln
