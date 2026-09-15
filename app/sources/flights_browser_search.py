@@ -25,7 +25,8 @@ import contextlib
 from datetime import date
 
 from ..config import Config
-from .flight_cards import parse_cards
+from ..logging_setup import get_logger
+from .flight_cards import confirmed_dates, parse_cards
 from .scraper_base import (
     browser_page,
     dismiss_consent,
@@ -35,6 +36,7 @@ from .scraper_base import (
     wait_for_stable_result_count,
 )
 
+log = get_logger("source.flights_browser_search")
 SOURCE = "google_flights(playwright-roundtrip)"
 _END_MARKER = "Hin und zurück"
 
@@ -67,6 +69,22 @@ async def cheapest_round_trip_cards(cfg: Config, origin: str, out_d: date, ret_d
         body = ""
         with contextlib.suppress(Exception):
             body = await page.inner_text("body")
+        # Roadmap Runde 2/3, Punkt 2.3/6.4: Google's eigener "Preise
+        # beobachten"-Text bestaetigt (oder widerlegt) in maschinenlesbarer
+        # Form, dass die Ergebnisliste wirklich zu den angefragten Daten
+        # gehoert - siehe flight_cards.confirmed_dates(). Weicht sie ab, sind
+        # die Karten-Preise fuer ANDERE Daten (URL-Parameter griffen nicht),
+        # dann lieber gar keine Karten zurueckgeben als einen falsch
+        # datierten Preis als "echt geprueft" durchreichen.
+        confirmed = confirmed_dates(body)
+        if confirmed is not None and confirmed != (out_d.isoformat(), ret_d.isoformat()):
+            log.warning("%s %s %s/%s: Google zeigt Daten %s statt der angefragten "
+                       "(%s/%s) - Ergebnisse verworfen, URL-Datumsparameter "
+                       "griffen vermutlich nicht", SOURCE, origin, out_d, ret_d,
+                       confirmed, out_d.isoformat(), ret_d.isoformat())
+            if cfg.sources.scraper.screenshot_on_error:
+                await save_screenshot(page, SOURCE)
+            return [], url
         cards = parse_cards(body, _END_MARKER)
         if not cards and cfg.sources.scraper.screenshot_on_error:
             await save_screenshot(page, SOURCE)

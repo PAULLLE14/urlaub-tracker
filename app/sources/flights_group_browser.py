@@ -142,8 +142,14 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
     group_checked = split_checked = 0
     errors: list[str] = []
     no_bag_fetcher = _ConsentFetcher()
+    # Preis-Leiter (Roadmap Runde 2/3, Punkt 2.1): erst NACH dem vollstaendigen
+    # Gruppen-Check pro tatsaechlich BESTAETIGTEM 8-Pax-Preis sortieren, nicht
+    # nach der 1-Pax-Schaetzung (externe Review, Runde 3) - sonst haengt die
+    # Leiter an Kombis, die im echten Ranking gar nicht vorne liegen.
+    group_offer_by_key: dict[tuple, FlightOffer] = {}
+    per_person4_by_key: dict[tuple, float] = {}
 
-    for idx, key in enumerate(rt_keys):
+    for key in rt_keys:
         _trip_type, origin, _destination, s_date, r_date = key
         estimated = rt_best[key]
         label = f"GROUP({t.persons}) {origin} {s_date}/{r_date}"
@@ -180,14 +186,8 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             if suspect:
                 group_off.group_check_unconfirmed = suspect
                 log.warning("%s: %s", label, suspect)
-            if idx < _PRICE_LADDER_TOP_N:
-                group_off.price_ladder["1_pax_mit_gepaeck"] = round(estimated.price_per_person, 2)
-                group_off.price_ladder["8_pax"] = round(group_off.price_per_person, 2)
-                no_bag = cheapest_price_no_bag(cfg, no_bag_fetcher, origin, s_date, r_date)
-                if no_bag is not None:
-                    group_off.price_ladder["1_pax_ohne_gepaeck"] = round(no_bag, 2)
-                else:
-                    log.info("%s: Preis-Leiter ohne Gepaeck nicht lesbar", label)
+            else:
+                group_offer_by_key[key] = group_off
             offers.append(group_off)
             if card8["price"] > estimated.price_total:
                 reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
@@ -218,8 +218,7 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             continue
 
         per_person4 = card4["price"] / _SPLIT_SIZE
-        if card8 is not None and idx < _PRICE_LADDER_TOP_N:
-            group_off.price_ladder["4_pax"] = round(per_person4, 2)
+        per_person4_by_key[key] = per_person4
         lower_bound = card4["price"] * 2
         if card8 is not None:
             per_person8 = card8["price"] / t.persons
@@ -252,6 +251,25 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             split_off.group_check_unconfirmed = suspect
             log.warning("SPLIT(%d) %s %s/%s: %s", _SPLIT_SIZE, origin, s_date, r_date, suspect)
         offers.append(split_off)
+
+    # Preis-Leiter fuer die ECHTEN Top-5 (nach bestaetigtem 8-Pax-Preis, nicht
+    # nach der 1-Pax-Schaetzung - Bugfix Roadmap Runde 3): erst jetzt, wo alle
+    # Gruppen-Checks fertig sind und feststeht, welche Kombis wirklich vorne
+    # liegen, den zusaetzlichen "ohne Gepaeck"-Preis nachladen.
+    top5 = sorted(group_offer_by_key.items(),
+                 key=lambda kv: kv[1].price_per_person)[:_PRICE_LADDER_TOP_N]
+    for key, group_off in top5:
+        _trip_type, origin, _destination, s_date, r_date = key
+        group_off.price_ladder["1_pax_mit_gepaeck"] = round(rt_best[key].price_per_person, 2)
+        group_off.price_ladder["8_pax"] = round(group_off.price_per_person, 2)
+        if key in per_person4_by_key:
+            group_off.price_ladder["4_pax"] = round(per_person4_by_key[key], 2)
+        no_bag = cheapest_price_no_bag(cfg, no_bag_fetcher, origin, s_date, r_date)
+        if no_bag is not None:
+            group_off.price_ladder["1_pax_ohne_gepaeck"] = round(no_bag, 2)
+        else:
+            log.info("GROUP(%d) %s %s/%s: Preis-Leiter ohne Gepaeck nicht lesbar",
+                     t.persons, origin, s_date, r_date)
 
     # Multi-City (A3): kein Split-Check (das 2-Klick-Routing macht eine
     # zusaetzliche 4-Pax-Suche unverhaeltnismaessig teuer) - nur die echte

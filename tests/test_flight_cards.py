@@ -1,6 +1,11 @@
 from datetime import date
 
-from app.sources.flight_cards import build_approx_segments, implausible_price_reason, parse_cards
+from app.sources.flight_cards import (
+    build_approx_segments,
+    confirmed_dates,
+    implausible_price_reason,
+    parse_cards,
+)
 
 SAMPLE_OUTBOUND = """Suchergebnisse
 4 Ergebnisse.
@@ -126,6 +131,18 @@ def test_implausible_price_reason_accepts_normal_range():
     assert implausible_price_reason(992.375) == ""
     assert implausible_price_reason(400.0) == ""
     assert implausible_price_reason(3000.0) == ""
+
+
+def test_confirmed_dates_parses_googles_own_text():
+    # Live verifiziert 15.09.26 auf einer echten FRA-USM-Round-Trip-Suche
+    # (Roadmap Runde 2/3, Punkt 2.3/6.4).
+    text = ("Für Flüge von Frankfurt am Main nach Ko Samui mit Abflug am "
+           "2027-05-14 und Ankunft am 2027-05-28 Preise beobachten")
+    assert confirmed_dates(text) == ("2027-05-14", "2027-05-28")
+
+
+def test_confirmed_dates_none_when_block_missing():
+    assert confirmed_dates("irgendein anderer Seitentext ohne den Baustein") is None
 
 
 def test_build_segments_real_airports_synthetic_times():

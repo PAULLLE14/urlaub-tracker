@@ -226,7 +226,7 @@ def _to_offer(fl, *, trip_type: str, direction: str, origin: str,
 
 
 def _make_query(legs: list, trip: str, cfg: Config, pax: int = SEARCH_PAX,
-                checked_bags: int | None = None):
+                checked_bags: int | None = None, exclude_basic_economy: bool | None = None):
     fc = cfg.flight_constraints
     q = create_query(
         flights=legs, seat=_SEAT_MAP.get(fc.seat_class, "economy"), trip=trip,
@@ -236,12 +236,13 @@ def _make_query(legs: list, trip: str, cfg: Config, pax: int = SEARCH_PAX,
         hide_separate_and_self_transfer=fc.single_ticket_only,
         # 13.09.26 Nutzervorgabe: nur Tarife MIT Aufgabegepaeck vergleichen.
         # checked_bags rechnet einen etwaigen Gepaeck-Aufpreis in den Preis
-        # ein, exclude_basic_economy nimmt reine Light-Tarife ganz raus.
-        # checked_bags kann hier explizit ueberschrieben werden (Roadmap
-        # Runde 2, Punkt 2.1: Preis-Leiter braucht zusaetzlich einen Preis
-        # OHNE Gepaeck zum Vergleich).
+        # ein, exclude_basic_economy nimmt reine Light-Tarife ganz raus. Beide
+        # koennen hier explizit ueberschrieben werden (Roadmap Runde 2, Punkt
+        # 2.1: Preis-Leiter braucht zusaetzlich einen Preis OHNE Gepaeck UND
+        # OHNE den Light-Tarif-Ausschluss zum Vergleich - genau das sieht man
+        # bei einer schnellen manuellen Suche).
         checked_bags=fc.checked_bags_included_in_search if checked_bags is None else checked_bags,
-        exclude_basic_economy=fc.exclude_basic_economy,
+        exclude_basic_economy=fc.exclude_basic_economy if exclude_basic_economy is None else exclude_basic_economy,
     )
     try:
         return q, q.url()
@@ -250,13 +251,17 @@ def _make_query(legs: list, trip: str, cfg: Config, pax: int = SEARCH_PAX,
 
 
 def cheapest_price_no_bag(cfg: Config, fetcher, origin: str, out_d: date, ret_d: date) -> float | None:
-    """1-Pax-Preis OHNE Aufgabegepaeck fuer dieselbe Route/Termine (Roadmap
-    Runde 2, Punkt 2.1: "Preis-Leiter"). Macht sichtbar, wie viel des
-    Unterschieds zu einer schnellen manuellen Google-Flights-Suche (die i.d.R.
-    ohne Gepaeck rechnet) allein am Gepaeck-Aufpreis liegt, statt an einem
-    echten Bucket-/Bestaetigungs-Unterschied."""
+    """1-Pax-Preis OHNE Aufgabegepaeck UND OHNE Light-Tarif-Ausschluss fuer
+    dieselbe Route/Termine (Roadmap Runde 2, Punkt 2.1: "Preis-Leiter").
+    Macht sichtbar, wie viel des Unterschieds zu einer schnellen manuellen
+    Google-Flights-Suche (die i.d.R. ohne Gepaeck rechnet UND den billigsten,
+    oft Light-)Tarif zeigt) allein daran liegt, statt an einem echten
+    Bucket-/Bestaetigungs-Unterschied. Bugfix (Roadmap Runde 3, externe
+    Review): vorher blieb exclude_basic_economy=true stehen, obwohl der
+    manuell gefundene Billigpreis meist genau so ein Light-Tarif ist - die
+    Leiter zeigte dadurch einen zu hohen "ohne Gepaeck"-Wert."""
     legs = [_out_leg(origin, out_d, cfg), _ret_leg(origin, ret_d, cfg)]
-    q, _ = _make_query(legs, "round-trip", cfg, pax=1, checked_bags=0)
+    q, _ = _make_query(legs, "round-trip", cfg, pax=1, checked_bags=0, exclude_basic_economy=False)
     try:
         results = _run_query(q, fetcher, cfg)
     except Exception as exc:  # noqa: BLE001

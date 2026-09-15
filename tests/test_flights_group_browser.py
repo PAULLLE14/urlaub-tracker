@@ -140,6 +140,47 @@ def test_price_ladder_filled_for_top_combo(monkeypatch):
     assert g.price_ladder["8_pax"] == round(7939.0 / 8, 2)
 
 
+def test_price_ladder_uses_confirmed_top5_not_estimate_order(monkeypatch):
+    # Roadmap Runde 3 (externe Review): Top-5 fuer die Preis-Leiter muessen
+    # nach dem ECHTEN bestaetigten 8-Pax-Preis gewaehlt werden, nicht nach
+    # der 1-Pax-Schaetzung - sonst haengt die Leiter an Kombis, die im
+    # tatsaechlichen Ranking gar nicht vorne liegen.
+    combos = [("STR", "2027-05-28"), ("STR", "2027-05-29"), ("MUC", "2027-05-28"),
+             ("MUC", "2027-05-29"), ("FRA", "2027-05-28"), ("FRA", "2027-05-29")]
+    # Schaetzpreise steigend ueber die Liste (combos[0] hat die GUENSTIGSTE
+    # Schaetzung), bestaetigte p.P.-Preise GENAU UMGEKEHRT (combos[0] hat den
+    # TEUERSTEN bestaetigten Preis, faellt also aus den Top-5 raus).
+    estimate_price = {i: 6000.0 + i * 100 for i in range(6)}
+    confirmed_pp = {i: 900.0 - i * 50 for i in range(6)}
+
+    async def fake_cards(cfg, origin, out_d, ret_d, pax):
+        for i, (o, rd) in enumerate(combos):
+            if o == origin and rd == ret_d.isoformat():
+                card = {**CARD_QATAR, "origin": origin, "price": confirmed_pp[i] * 8}
+                return ([card], f"https://example.test/{origin}/{rd}")
+        return ([], "")
+
+    monkeypatch.setattr(gb, "cheapest_round_trip_cards", fake_cards)
+    _no_network_ladder(monkeypatch, price=500.0)
+
+    cfg = get_config()
+    offers = [
+        rt_offer(o, [seg(o, "USM", "2027-05-14T17:00", "2027-05-15T09:00")],
+                 price_total=estimate_price[i], ret_date=rd)
+        for i, (o, rd) in enumerate(combos)
+    ]
+    asyncio.run(gb.verify(cfg, offers))
+
+    group_offers = {(o.origin, o.return_date.isoformat()): o
+                    for o in offers if o.pax_mode == "group"}
+    # combos[0] (billigste SCHAETZUNG, teuerster bestaetigter Preis) darf
+    # KEINE Preis-Leiter bekommen haben.
+    assert "1_pax_ohne_gepaeck" not in group_offers[combos[0]].price_ladder
+    # combos[1..5] (die 5 GUENSTIGSTEN bestaetigten Preise) muessen sie haben.
+    for combo in combos[1:]:
+        assert "1_pax_ohne_gepaeck" in group_offers[combo].price_ladder
+
+
 def test_multicity_gets_real_group_check(monkeypatch):
     # A3-Regression: eine Multi-City-1-Pax-Hochrechnung darf nicht mehr
     # unbestaetigt bleiben - der guenstigste Kandidat bekommt einen echten

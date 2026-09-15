@@ -44,6 +44,26 @@ PLAUSIBLE_PP_MIN = 400
 PLAUSIBLE_PP_MAX = 3000
 
 
+# Roadmap Runde 2/3, Punkt 2.3/6.4: Google zeigt im "Preise beobachten"-
+# Baustein einer Ergebnisliste die tatsaechlich gesuchten Daten NOCHMAL in
+# maschinenlesbarer Form, z.B. "... mit Abflug am 2027-05-14 und Ankunft am
+# 2027-05-28 Preise beobachten" - live verifiziert (15.09.26) auf einer
+# echten FRA-USM-Round-Trip-Suche. Zuverlässiger als das "14.–28. Mai 2027"-
+# Datum daneben (das ist lokalisiert und schwerer robust zu parsen). Damit
+# laesst sich hart pruefen, ob eine Karte wirklich zu den angefragten Daten
+# gehoert, statt blind zu vertrauen, dass die URL-Parameter gegriffen haben.
+_DATE_CONFIRM = re.compile(r"Abflug am (\d{4}-\d{2}-\d{2}) und Ankunft am (\d{4}-\d{2}-\d{2})")
+
+
+def confirmed_dates(body: str) -> tuple[str, str] | None:
+    """(Abflugdatum, Ankunftsdatum) laut Google's eigenem "Preise beobachten"-
+    Text, oder None wenn dieser Baustein nicht im Text vorkommt (z.B. weil
+    die Seite anders gerendert wurde - dann keine Aussage moeglich, NICHT als
+    Fehler werten)."""
+    m = _DATE_CONFIRM.search(body)
+    return (m.group(1), m.group(2)) if m else None
+
+
 def implausible_price_reason(price_per_person: float) -> str:
     """Leerstring wenn plausibel, sonst ein Grund fuer
     ``FlightOffer.group_check_unconfirmed`` (siehe Docstring oben)."""
