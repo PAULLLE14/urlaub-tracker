@@ -52,6 +52,7 @@ def _flight_row(run_id: int, o: FlightOffer) -> FlightOfferRow:
         deep_link=o.deep_link, captured_at=o.captured_at,
         excluded=o.excluded, exclude_reason=o.exclude_reason,
         pax_mode=o.pax_mode, price_confidence=o.price_confidence,
+        segment_times_approximate=o.segment_times_approximate,
     )
 
 

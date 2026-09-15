@@ -31,6 +31,28 @@ from .scraper_base import parse_money
 
 _AIRPORT_CODE = re.compile(r"\b[A-Z]{3}\b")
 
+# Plausibilitaets-Fenster fuer einen p.P.-Preis auf der Route STR/MUC/FRA/ZRH
+# <-> USM (Roadmap Runde 2, Punkt 1.1): CheckRun #17 zeigte eine Multi-City-
+# Karte mit 7.391 EUR p.P. - deutlich ausserhalb dessen, was fuer diese Route
+# real vorkommt (auch der als real verifizierte 58.913-EUR-Fall lag bei
+# ~7.364 p.P. und war ein Mixed-Cabin-Sonderfall, kein Normalpreis). Ausserhalb
+# dieses Fensters ist die Karte eher ein Parse-Fehler (falscher Preis-Kontext)
+# als ein echtes Angebot - wird deshalb NIE als bestaetigt gefuehrt, bleibt
+# aber (ueber group_check_unconfirmed) im Dashboard sichtbar/nachvollziehbar,
+# nicht geloescht.
+PLAUSIBLE_PP_MIN = 400
+PLAUSIBLE_PP_MAX = 3000
+
+
+def implausible_price_reason(price_per_person: float) -> str:
+    """Leerstring wenn plausibel, sonst ein Grund fuer
+    ``FlightOffer.group_check_unconfirmed`` (siehe Docstring oben)."""
+    if PLAUSIBLE_PP_MIN <= price_per_person <= PLAUSIBLE_PP_MAX:
+        return ""
+    return (f"parse_suspect (p.P. {price_per_person:.0f} EUR ausserhalb "
+            f"{PLAUSIBLE_PP_MIN}-{PLAUSIBLE_PP_MAX} EUR - vermutlich falsche "
+            "Karte/Preis-Kontext geparst, manuell pruefen)")
+
 
 def card_pattern(end_marker: str) -> re.Pattern:
     """``end_marker`` ist der Text direkt nach dem Preis, der eine Karte

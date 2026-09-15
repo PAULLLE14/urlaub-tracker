@@ -36,7 +36,7 @@ from datetime import date
 from ..config import Config
 from ..logging_setup import get_logger
 from ..offers import FlightOffer
-from .flight_cards import build_approx_segments, parse_cards
+from .flight_cards import build_approx_segments, implausible_price_reason, parse_cards
 from .flights import SEARCH_PAX, _make_query, _out_leg, _ret_leg
 from .scraper_base import (
     browser_page,
@@ -134,6 +134,22 @@ async def _search_one(cfg: Config, origin: str, dest: str, out_d: date,
             return None
         ret_cards.sort(key=lambda c: c["price"])
         ret_cheapest = ret_cards[0]
+        # Roadmap Runde 2, Punkt 1.1: "gesamte Reise" auf der Hinflug-Liste
+        # zeigt bereits den vollen (Start-)Endpreis fuer die ganze Reise -
+        # nach Auswahl des Hinflugs kann der Rueckflug-Preis nur gleich bleiben
+        # oder steigen (die zuerst gezeigte Karte war ja schon eine "ab"-
+        # Angabe fuer genau diese Route), nie SINKEN. Ein niedrigerer Preis
+        # auf der Rueckflug-Karte deutet auf einen Parse-/Kontext-Fehler hin
+        # (falsche Karte erwischt) statt auf ein echtes billigeres Angebot -
+        # dann lieber verwerfen als eine falsche Zahl weiterreichen.
+        if ret_cheapest["price"] < cheapest["price"]:
+            log.warning("MC(Browser) %s->USM->%s %s/%s: Rueckflug-Karte (%.0f EUR) "
+                       "guenstiger als Hinflug-Startpreis (%.0f EUR) - vermutlich "
+                       "falsche Karte geparst, verworfen", origin, dest, out_d, ret_d,
+                       ret_cheapest["price"], cheapest["price"])
+            if cfg.sources.scraper.screenshot_on_error:
+                await save_screenshot(page, SOURCE)
+            return None
 
     out_segs = build_approx_segments(cheapest["origin"], cheapest["dest"], cheapest["layovers"],
                                      cheapest["dep_time"], cheapest["duration_min"], out_d)
@@ -149,7 +165,7 @@ async def _search_one(cfg: Config, origin: str, dest: str, out_d: date,
         price_total, price_per_person, pax_mode = round(total, 2), round(total / persons, 2), "group"
     else:
         price_total, price_per_person, pax_mode = round(total * persons, 2), round(total, 2), "estimated"
-    return FlightOffer(
+    off = FlightOffer(
         source=SOURCE, direction="multi_city", trip_type="multi_city",
         origin=origin, destination=dest, search_date=out_d, return_date=ret_d,
         price_total=price_total, price_per_person=price_per_person,
@@ -157,6 +173,15 @@ async def _search_one(cfg: Config, origin: str, dest: str, out_d: date,
         segments=out_segs, return_segments=ret_segs,
         deep_link=url_group, pax_mode=pax_mode, segment_times_approximate=True,
     )
+    if pax_mode == "group":
+        # Nur fuer echte Gruppenpreise pruefen (Roadmap 1.1) - eine 1-Pax-
+        # Hochrechnung x8 kann rein rechnerisch ausserhalb des Fensters
+        # landen, ohne dass die KARTE falsch geparst waere.
+        suspect = implausible_price_reason(price_per_person)
+        if suspect:
+            off.group_check_unconfirmed = suspect
+            log.warning("MC(Browser) %s->USM->%s %s/%s: %s", origin, dest, out_d, ret_d, suspect)
+    return off
 
 
 async def fetch(cfg: Config) -> tuple[list[FlightOffer], dict]:

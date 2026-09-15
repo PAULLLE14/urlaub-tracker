@@ -81,6 +81,7 @@ def flight_offer_dict(f: FlightOfferRow) -> dict[str, Any]:
         "excluded": f.excluded, "exclude_reason": f.exclude_reason,
         "departure": (f.segments[0]["departure"] if f.segments else None),
         "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
+        "segment_times_approximate": f.segment_times_approximate,
     }
 
 
@@ -191,6 +192,7 @@ def summary_payload(session, cfg: Config) -> dict:
         "run_id": r.id if r else None,
         "captured_at": snap.created_at.isoformat() if snap else None,
         "currency": cfg.trip.currency,
+        "persons": cfg.trip.persons,
         "verdict": snap.verdict if snap else {},
         "totals": None if not snap else {
             "flight_total": snap.flight_total,

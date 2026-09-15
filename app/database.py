@@ -69,6 +69,7 @@ _ADDITIVE_COLUMNS = {
         ("return_segments", "JSON DEFAULT '[]'"),
         ("pax_mode", "VARCHAR(12) DEFAULT 'estimated'"),
         ("price_confidence", "VARCHAR(300) DEFAULT ''"),
+        ("segment_times_approximate", "BOOLEAN DEFAULT 0"),
     ],
     "hotel_offer": [("is_reference", "BOOLEAN DEFAULT 0")],
     "package_offer": [("is_reference", "BOOLEAN DEFAULT 0")],

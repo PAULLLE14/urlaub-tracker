@@ -91,8 +91,27 @@ async function loadSummary() {
   const s = await api("/api/summary");
   CURRENCY = s.currency || CURRENCY;
   renderVerdictCards(s.trends || {}, s.totals || {});
-  renderVersus(s.verdict || {}, s.totals || {});
+  renderVersus(s.verdict || {}, s.totals || {}, s.persons);
   renderCheapestFlight(s.flight, (s.verdict || {}).return_reference);
+}
+
+// Nutzer-Fund 14.09.26 (Roadmap Runde 2, 1.6): die Kopfzeile "8 Personen, 3
+// Villen, 14 Nächte" war fest im HTML eincodiert und driftete auseinander,
+// sobald die gewaehlte Zimmeraufteilung/Naechte-Zahl real etwas anderes war
+// (hier: 4× Doppelzimmer statt "3 Villen", 12/13 statt 14 Naechte). Jetzt
+// aus den echten Verdict-Daten gebaut.
+const ROOM_LABELS = { 2: "Doppelzimmer", 3: "Dreier-/Villenzimmer" };
+function versusSubline(verdict, persons) {
+  const h = verdict.hotel;
+  let roomTxt = "Zimmeraufteilung noch offen";
+  if (h && h.room_split) {
+    const entries = Object.entries(h.room_split);
+    const totalRooms = entries.reduce((sum, [, count]) => sum + count, 0);
+    const detail = entries.map(([size, count]) => `${count}× ${ROOM_LABELS[size] || `${size}er-Zimmer`}`).join(" + ");
+    roomTxt = `${totalRooms} Zimmer (${detail})`;
+  }
+  const nightsTxt = verdict.nights_used != null ? `${verdict.nights_used} Nächte` : "Nächte noch offen";
+  return `${persons != null ? persons : "?"} Personen, ${roomTxt}, ${nightsTxt}`;
 }
 
 function renderVerdictCards(trends, totals) {
@@ -121,11 +140,15 @@ function renderVerdictCards(trends, totals) {
   }
 }
 
-function renderVersus(verdict, totals) {
+function renderVersus(verdict, totals, persons) {
+  $("#versusSubline").textContent = versusSubline(verdict, persons);
   const sep = totals.separate_total, pkg = totals.package_total;
   $("#sepAmount").textContent = money(sep);
   $("#pkgAmount").textContent = money(pkg);
-  const fsrc = verdict.flight_source === "round_trip" ? " (Round-Trip)"
+  const f0 = verdict.flight;
+  const isSplit0 = f0 && (f0.pax_mode || "").startsWith("split_");
+  const fsrc = isSplit0 ? " (2 getrennte Tickets, Schätzung)"
+    : verdict.flight_source === "round_trip" ? " (Round-Trip)"
     : verdict.flight_source === "multi_city" ? " (Multi-City)" : "";
 
   // Bugfix 13.09.26 (Nutzer: "die Preise werden mir garnicht gezeigt,
@@ -176,8 +199,24 @@ function renderVersus(verdict, totals) {
   $("#verdictNotes").textContent = (verdict.notes || []).join("  —  ");
 }
 
-function segList(segments, layoverAirports, layoverMinutes) {
+// Nutzer-Fund 15.09.26 (Roadmap Runde 2, 1.3): bei approximierten Segmenten
+// (segment_times_approximate) sind Einzel-Abflug-/Ankunftszeiten und
+// Umstiegsdauern gleichmaessig auf die Gesamtreisezeit VERTEILT, kein
+// echtes Timing (siehe flight_cards.build_approx_segments) - sahen im
+// Dashboard aber aus wie echte Zeiten ("Umstieg DOH: 0h"). Fuer solche
+// Segmente nur noch Route/Flughaefen zeigen, keine erfundenen Zeiten.
+function segList(segments, layoverAirports, layoverMinutes, approximate) {
   const box = document.createDocumentFragment();
+  if (approximate) {
+    const route = (segments || []).map((s) => s.from).concat(segments.length ? [segments[segments.length - 1].to] : []);
+    const seg = el("div", "seg");
+    seg.innerHTML = `<strong>${route.join(" → ")}</strong>`;
+    box.appendChild(seg);
+    const note = el("div", "seg muted");
+    note.textContent = "Zwischenzeiten nicht bekannt (nur Gesamt-Abflug/-Ankunft/-Dauer aus Google Flights sichtbar)";
+    box.appendChild(note);
+    return box;
+  }
   (segments || []).forEach((s, i) => {
     const seg = el("div", "seg");
     seg.innerHTML = `<strong>${s.from} → ${s.to}</strong> &nbsp; ${timeTZ(s.departure, s.departure_tz)} &rarr; ${timeTZ(s.arrival, s.arrival_tz)} &nbsp; · ${hm(s.duration_minutes)}` +
@@ -201,8 +240,14 @@ function flightCard(f) {
     return c;
   }
   const isMC = f.trip_type === "multi_city";
+  const isSplit = (f.pax_mode || "").startsWith("split_");
   const h = el("div", "label");
-  h.textContent = isMC ? "Multi-City — ein Ticket, unterschiedliche Flughäfen" : "Hin + Rück — ein Ticket";
+  // Nutzer-Fund 15.09.26: eine split_4_4-Buchung (2 GETRENNTE Tickets auf
+  // demselben Flug) zeigte hier "ein Ticket" - das stimmt nicht, es sind
+  // zwei separate Buchungen (siehe pax_mode-Kommentar in offers.py).
+  h.textContent = isSplit
+    ? `${(f.pax_mode.replace("split_", "").split("_").length)} Buchungen (${f.pax_mode.replace("split_", "").replace("_", "+")}) auf demselben Flug – Schätzung`
+    : isMC ? "Multi-City — ein Ticket, unterschiedliche Flughäfen" : "Hin + Rück — ein Ticket";
   const big = el("div", "big");
   big.textContent = money(f.price_total);
   const sub = el("div", "sub");
@@ -214,18 +259,29 @@ function flightCard(f) {
   c.append(h, big, sub);
 
   // Hinflug
+  const approx = !!f.segment_times_approximate;
+  if (approx) {
+    // Roadmap 1.4: die Layover-Mindestzeit-Pruefung (route_filter.py) wird
+    // bei approximierten Segmenten bewusst uebersprungen (die Zeiten sind
+    // gleichverteilte Schaetzungen, kein echtes Timing) - im Dashboard muss
+    // sichtbar sein, dass dieser Sicherheitscheck hier NICHT gegriffen hat.
+    const warn = el("div", "seg");
+    warn.style.marginTop = "6px";
+    warn.innerHTML = `<span class="tag amber" title="Umstiegs-Mindestzeit konnte fuer dieses Angebot nicht geprueft werden, da Google Flights hier keine Einzel-Umstiegszeiten zeigt">⚠ Umstiegszeiten ungeprüft</span>`;
+    c.appendChild(warn);
+  }
   const outLay = f.layover_airports.slice(0, outN), outMin = f.layover_minutes.slice(0, outN);
   const outHead = el("div", "seg muted"); outHead.style.marginTop = "6px";
   outHead.textContent = "Hinflug" + (f.search_date ? ` · ${f.search_date}` : "");
   c.appendChild(outHead);
-  c.appendChild(segList(f.segments, outLay, outMin));
+  c.appendChild(segList(f.segments, outLay, outMin, approx));
 
   if (isMC && f.return_segments && f.return_segments.length) {
     const retLay = f.layover_airports.slice(outN), retMin = f.layover_minutes.slice(outN);
     const retHead = el("div", "seg muted"); retHead.style.marginTop = "6px";
     retHead.textContent = "Rückflug" + (f.return_date ? ` · ${f.return_date}` : "");
     c.appendChild(retHead);
-    c.appendChild(segList(f.return_segments, retLay, retMin));
+    c.appendChild(segList(f.return_segments, retLay, retMin, approx));
   } else if (!isMC) {
     const note = el("div", "seg muted");
     note.textContent = "Rückflug-Routing zeigt Google erst nach Auswahl des Hinflugs; Preis ist der Gesamtpreis.";
@@ -395,10 +451,18 @@ function renderFlights(rows) {
     } else {
       segTxt = (r.segments || []).map((s) => `${s.from}→${s.to} ${timeTZ(s.departure, s.departure_tz)}` + (s.plane_type ? ` (${s.plane_type})` : "")).join("  ·  ");
     }
-    const layTxt = (r.layover_airports || []).map((a, i) => `${a} ${hm(r.layover_minutes[i])}`).join(", ") || "–";
+    // Roadmap 1.3: bei approximierten Segmenten sind die Umstiegsminuten
+    // erfunden (gleichverteilt) - nur die echten Flughafen-Codes zeigen,
+    // kein "0h", das wie eine echte Messung aussieht.
+    const layTxt = r.segment_times_approximate
+      ? (r.layover_airports || []).join(", ") || "–"
+      : (r.layover_airports || []).map((a, i) => `${a} ${hm(r.layover_minutes[i])}`).join(", ") || "–";
     const typeBadge = (isMC
       ? `<span class="pill durchschnitt" style="font-size:10px">Multi-City</span>`
       : `<span class="pill guenstig" style="font-size:10px">Round-Trip</span>`)
+      + (r.segment_times_approximate
+        ? ` <span class="tag amber" title="Umstiegs-Mindestzeit konnte fuer dieses Angebot nicht geprueft werden (keine Einzel-Umstiegszeiten von Google Flights sichtbar)">⚠ Umstiegszeiten ungeprüft</span>`
+        : "")
       + (r.pax_mode === "group"
         ? ` <span class="tag teal" title="Mit der vollen Personenzahl (8) real gesucht, nicht aus 1 Person hochgerechnet">Gruppe geprüft</span>`
         : r.pax_mode && r.pax_mode.startsWith("split_")
@@ -426,17 +490,24 @@ function renderFlights(rows) {
           && new Date(r.return_segments[0].departure).getHours() >= 12
         ? ` <span class="tag teal" title="Rückflug startet nachmittags ab USM">USM nachmittags</span>`
         : "");
+    // Roadmap 1.5: "zurück ab USM" verschluckte die eigentliche Rueckroute;
+    // jetzt die volle Rueckstrecke ausschreiben statt nur den Startflughafen.
     const routeTxt = isMC && r.return_route.length
-      ? `${(r.route || []).join("→")} <span class="muted">/ zurück ab ${r.return_route[0]}</span>`
+      ? `${(r.route || []).join("→")} <span class="muted">/ Rück ${(r.return_route || []).join("→")}</span>`
       : (r.route || [r.origin, r.destination]).join("→");
     const dateTxt = `${r.search_date} → ${r.return_date || "?"}`;
+    // Roadmap 1.5: bei Multi-City zaehlte diese Spalte Hin+Rueck-Stopps
+    // zusammen - Constraint ist aber "max. 2 PRO RICHTUNG", "4 Stopps"
+    // suggerierte faelschlich eine Verletzung. "2 + 2" (Hin + Rück) zeigen.
+    const retN = isMC ? Math.max(0, (r.return_segments || []).length - 1) : 0;
+    const stopsTxt = isMC ? `${outN} + ${retN}` : String(r.stops);
     tr.innerHTML = `
       <td class="mono nowrap">${money(r.price_total)}</td>
       <td class="mono nowrap">${money(r.price_per_person)}</td>
       <td class="nowrap">${r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">→</a>` : ""}</td>
       <td>${typeBadge}</td>
       <td class="nowrap">${routeTxt}<div class="seg">${dateTxt}</div>${r.excluded ? `<div class="reason">✗ ${r.exclude_reason}</div>` : ""}</td>
-      <td class="mono">${r.stops}</td>
+      <td class="mono">${stopsTxt}</td>
       <td class="small hide-narrow">${layTxt}</td>
       <td class="mono nowrap">${hm(r.total_duration_minutes)}</td>
       <td class="small nowrap">${r.segments[0] ? r.segments[0].from + " " : ""}${timeTZ(r.departure)}</td>

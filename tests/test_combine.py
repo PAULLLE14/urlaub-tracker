@@ -161,6 +161,25 @@ def test_cheaper_raw_flight_loses_when_extra_hotel_night_makes_it_pricier():
     assert any("nicht der guenstigste Einzelflug" in n for n in v.notes)
 
 
+def test_no_nights_clause_when_cheapest_raw_needs_same_nights_as_chosen():
+    # Bugfix (Roadmap Runde 2, Punkt 1.6): delta_word(0) lieferte "0
+    # Hotelnaechte weniger" - Unsinn, wenn der guenstigste EINZELFLUG genauso
+    # viele Naechte braucht wie die gewaehlte Option (hier gewinnt eine
+    # ANDERE Kombination nur, weil sie eine Nacht WENIGER braucht - der
+    # guenstigste Einzelflug selbst hat delta=0).
+    c = get_config()
+    hotel = HotelOffer(source="check24", ok=True, price_total=8000.0, currency="EUR",
+                       nights=c.trip.nights, per_night=round(8000.0 / c.trip.nights, 2))
+    cheapest_raw = _rt_ret(7900, "2027-05-28")            # delta=0, aber niedrigster Flugpreis
+    best = _rt_ret(8100, "2027-05-27")                    # 1 Nacht weniger noetig, teurerer Flug
+    v = build_verdict([cheapest_raw, best], [hotel], [], c)
+    assert v.flight is best
+    matching_notes = [n for n in v.notes if "nicht der guenstigste Einzelflug" in n]
+    assert matching_notes
+    assert "0 Hotelnacht" not in matching_notes[0]
+    assert "braucht" not in matching_notes[0]
+
+
 def test_hotel_total_scales_up_when_only_flight_returns_a_day_later():
     c = get_config()
     hotel = HotelOffer(source="check24", ok=True, price_total=8000.0, currency="EUR",

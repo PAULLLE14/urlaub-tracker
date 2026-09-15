@@ -100,6 +100,10 @@ class FlightOfferRow(Base):
     # reine Untergrenze oder eine konservative Schaetzung ist (siehe
     # offers.py FlightOffer.price_confidence).
     price_confidence: Mapped[str] = mapped_column(String(300), default="")
+    # Siehe offers.py FlightOffer.segment_times_approximate - steuert im
+    # Dashboard, ob Zwischenzeiten/Umstiegsdauern angezeigt werden duerfen
+    # (Roadmap Runde 2, Punkt 1.3/1.4).
+    segment_times_approximate: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class HotelOfferRow(Base):

@@ -40,6 +40,12 @@ class Verdict:
     winner: str = "unbekannt"          # "einzelbuchung" | "pauschalreise" | "unbekannt"
     delta: float | None = None          # package_total - separate_total
     notes: list[str] = field(default_factory=list)
+    # Echte Naechte-Zahl des GEWAEHLTEN Flugs (cfg.trip.nights + Delta aus
+    # _hotel_nights_delta), nicht der feste Konfigurationswert - Roadmap
+    # Runde 2, Punkt 1.6: die Dashboard-Kopfzeile zeigte bisher immer die
+    # statische Config-Zahl, auch wenn der gewaehlte Flug tatsaechlich eine
+    # andere Naechte-Zahl braucht.
+    nights_used: int | None = None
 
     def as_dict(self) -> dict:
         # Bugfix 13.09.26 (Nutzer: "die Preise werden mir garnicht gezeigt,
@@ -62,6 +68,7 @@ class Verdict:
             "winner": self.winner,
             "delta": self.delta,
             "notes": self.notes,
+            "nights_used": self.nights_used,
             "flight": None if not f else {
                 "trip_type": f.trip_type,
                 "price_total": f.price_total, "price_per_person": f.price_per_person,
@@ -70,6 +77,8 @@ class Verdict:
                 "search_date": f.search_date.isoformat(),
                 "return_date": f.return_date.isoformat() if f.return_date else None,
                 "deep_link": f.deep_link,
+                "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
+                "segment_times_approximate": f.segment_times_approximate,
             },
             "return_reference": None if not r else {
                 "route": r.route, "airlines": r.airlines,
@@ -175,10 +184,15 @@ def _pick_flight(flights: list[FlightOffer], hotel: HotelOffer | None,
     best = min(connected, key=lambda o: _true_total(o, hotel, cfg))
     cheapest_raw = min(connected, key=lambda o: o.price_total)
     if best is not cheapest_raw and _true_total(best, hotel, cfg) < _true_total(cheapest_raw, hotel, cfg):
+        # Bugfix (Roadmap Runde 2, Punkt 1.6): delta_word(0) liefert "0
+        # Hotelnaechte weniger" - Unsinn, wenn beide Optionen gleich viele
+        # Naechte brauchen. Klausel dann ganz weglassen statt 0 zu beschoenigen.
+        raw_delta = _hotel_nights_delta(cheapest_raw, cfg)
+        nights_clause = f" braucht {delta_word(raw_delta)}," if raw_delta else ","
         notes.append(
             f"Guenstigste GESAMT-Kombination ist nicht der guenstigste Einzelflug: "
             f"{cheapest_raw.price_total:.0f} EUR ({cheapest_raw.search_date} -> "
-            f"{cheapest_raw.return_date}) braucht {delta_word(_hotel_nights_delta(cheapest_raw, cfg) or 0)}, "
+            f"{cheapest_raw.return_date}){nights_clause} "
             f"dadurch in Summe teurer als die gewaehlte Option ({best.price_total:.0f} EUR, "
             f"{best.search_date} -> {best.return_date}).")
     delta_chosen = _hotel_nights_delta(best, cfg)
@@ -275,6 +289,7 @@ def build_verdict(flights: list[FlightOffer], hotels: list[HotelOffer],
         if delta and v.hotel.per_night:
             adjusted += delta * v.hotel.per_night
         v.hotel_total = round(adjusted, 2)
+        v.nights_used = cfg.trip.nights + (delta or 0)
 
     if v.flight_total is not None and v.hotel_total is not None:
         v.separate_total = round(v.flight_total + v.hotel_total, 2)

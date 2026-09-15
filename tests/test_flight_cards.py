@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.sources.flight_cards import build_approx_segments, parse_cards
+from app.sources.flight_cards import build_approx_segments, implausible_price_reason, parse_cards
 
 SAMPLE_OUTBOUND = """Suchergebnisse
 4 Ergebnisse.
@@ -111,6 +111,21 @@ def test_parse_cards_different_end_marker_for_round_trip():
     assert cheapest["price"] == 7939.0
     assert cheapest["airlines"] == ["Qatar Airways"]
     assert cheapest["layovers"] == ["DOH"]
+
+
+def test_implausible_price_reason_flags_outside_window():
+    # Roadmap Runde 2, Punkt 1.1: CheckRun #17 zeigte 7.391 EUR p.P. auf einer
+    # Multi-City-Karte - ausserhalb des plausiblen Fensters, vermutlich ein
+    # Parse-Fehler statt ein echtes Angebot.
+    assert implausible_price_reason(7391.0) != ""
+    assert "parse_suspect" in implausible_price_reason(7391.0)
+    assert implausible_price_reason(50.0) != ""
+
+
+def test_implausible_price_reason_accepts_normal_range():
+    assert implausible_price_reason(992.375) == ""
+    assert implausible_price_reason(400.0) == ""
+    assert implausible_price_reason(3000.0) == ""
 
 
 def test_build_segments_real_airports_synthetic_times():

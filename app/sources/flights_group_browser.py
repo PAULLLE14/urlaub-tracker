@@ -73,7 +73,7 @@ from datetime import date
 from ..config import Config
 from ..logging_setup import get_logger
 from ..offers import FlightOffer
-from .flight_cards import build_approx_segments, cheapest_card
+from .flight_cards import build_approx_segments, cheapest_card, implausible_price_reason
 from .flights import _flag_duplicate_estimates
 from .flights_browser_search import cheapest_round_trip_cards
 from .flights_multicity_browser import _search_one as _mc_search_one
@@ -169,11 +169,16 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
         else:
             log.info("%s: echter Preis %.0f EUR (%s, Hochrechnung war %.0f EUR)",
                      label, card8["price"], "+".join(card8["airlines"]), estimated.price_total)
-            offers.append(_offer_from_card(
+            group_off = _offer_from_card(
                 card8, cfg=cfg, origin=origin, s_date=s_date, r_date=r_date,
                 pax_mode="group", deep_link=deep8,
                 price_total=card8["price"], price_per_person=card8["price"] / t.persons,
-            ))
+            )
+            suspect = implausible_price_reason(group_off.price_per_person)
+            if suspect:
+                group_off.group_check_unconfirmed = suspect
+                log.warning("%s: %s", label, suspect)
+            offers.append(group_off)
             if card8["price"] > estimated.price_total:
                 reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
                          f"Preis verfuegbar (echter Gruppenpreis ab {card8['price']:.0f} EUR)")
@@ -224,12 +229,17 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
 
         log.info("SPLIT(%d) %s %s/%s: %.0f EUR (%s, %s)", _SPLIT_SIZE, origin, s_date, r_date,
                 price_total, "+".join(card4["airlines"]), confidence)
-        offers.append(_offer_from_card(
+        split_off = _offer_from_card(
             card4, cfg=cfg, origin=origin, s_date=s_date, r_date=r_date,
             pax_mode=f"split_{_SPLIT_SIZE}_{_SPLIT_SIZE}", deep_link=deep4,
             price_total=price_total, price_per_person=price_total / t.persons,
             price_confidence=confidence,
-        ))
+        )
+        suspect = implausible_price_reason(card4["price"] / _SPLIT_SIZE)
+        if suspect:
+            split_off.group_check_unconfirmed = suspect
+            log.warning("SPLIT(%d) %s %s/%s: %s", _SPLIT_SIZE, origin, s_date, r_date, suspect)
+        offers.append(split_off)
 
     # Multi-City (A3): kein Split-Check (das 2-Klick-Routing macht eine
     # zusaetzliche 4-Pax-Suche unverhaeltnismaessig teuer) - nur die echte

@@ -41,11 +41,20 @@ def start() -> None:
     if _scheduler:
         return
     _scheduler = BackgroundScheduler(timezone="UTC")
+    # Bugfix (Roadmap Runde 2, Punkt 1.7): APScheduler behandelt ein
+    # EXPLIZIT uebergebenes next_run_time=None als "Job pausiert anlegen"
+    # (siehe APScheduler-Doku zu add_job) - NICHT als "normale Berechnung
+    # aus dem Trigger". Bei run_on_start=false wurde dadurch bisher IMMER
+    # next_run_time=None uebergeben und der Job lief nie automatisch (nur
+    # manuelle /api/check/run-Ausloesungen), obwohl "Scheduler: aus" im
+    # Dashboard eigentlich "laeuft, aber pausiert" haette heissen muessen.
+    # Fix: den Parameter bei run_on_start=false einfach WEGLASSEN, dann
+    # berechnet APScheduler den naechsten Lauf normal aus dem Interval-Trigger.
+    kwargs = {"next_run_time": datetime.now(timezone.utc)} if cfg.schedule.run_on_start else {}
     _scheduler.add_job(
         _job, IntervalTrigger(hours=cfg.schedule.every_hours),
         id=_JOB_ID, jitter=cfg.schedule.jitter_seconds,
-        max_instances=1, coalesce=True,
-        next_run_time=datetime.now(timezone.utc) if cfg.schedule.run_on_start else None,
+        max_instances=1, coalesce=True, **kwargs,
     )
     _scheduler.start()
     log.info("Scheduler gestartet: alle %.1f h (jitter %ds)",
