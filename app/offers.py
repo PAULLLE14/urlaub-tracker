@@ -107,6 +107,13 @@ class FlightOffer:
     # pruefen), Stopp-Zahl/Zeitfenster/Geometrie nutzen echte Daten weiter.
     segment_times_approximate: bool = False
 
+    # Roadmap Runde 2, Punkt 2.1 ("Preis-Leiter"): macht fuer die Top-5-
+    # Kombinationen sichtbar, WARUM der Preis hier hoeher ist als eine
+    # schnelle manuelle 1-Pax-Suche ohne Gepaeck - Keys je nach Verfuegbarkeit
+    # "1_pax_ohne_gepaeck", "1_pax_mit_gepaeck", "4_pax", "8_pax" (EUR p.P.).
+    # Nur auf dem "group"-Angebot (echter 8-Pax-Preis) gesetzt, leer sonst.
+    price_ladder: dict = field(default_factory=dict)
+
     # ---- abgeleitete Werte (kombinieren Hin- + ggf. Rueckstrecke) ---------
     @staticmethod
     def _leg_stops(segs: list[Segment]) -> int:

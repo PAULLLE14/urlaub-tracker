@@ -82,6 +82,7 @@ def flight_offer_dict(f: FlightOfferRow) -> dict[str, Any]:
         "departure": (f.segments[0]["departure"] if f.segments else None),
         "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
         "segment_times_approximate": f.segment_times_approximate,
+        "price_ladder": f.price_ladder,
     }
 
 

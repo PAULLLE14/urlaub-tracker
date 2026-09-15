@@ -74,7 +74,7 @@ from ..config import Config
 from ..logging_setup import get_logger
 from ..offers import FlightOffer
 from .flight_cards import build_approx_segments, cheapest_card, implausible_price_reason
-from .flights import _flag_duplicate_estimates
+from .flights import _ConsentFetcher, _flag_duplicate_estimates, cheapest_price_no_bag
 from .flights_browser_search import cheapest_round_trip_cards
 from .flights_multicity_browser import _search_one as _mc_search_one
 
@@ -84,6 +84,7 @@ SOURCE = "google_flights(playwright-group)"
 _SPLIT_SIZE = 4  # Nutzervorgabe 14.09.26: 2 Familien a 4 Personen, fest.
 _SAME_BUCKET_RATIO = 1.05   # Preis(8)/8 <= Preis(4)/4 * diesen Faktor -> ein Bucket reicht
 _SPLIT_WORTHWHILE_RATIO = 1.05  # Preis(8)/8 muss mehr als 5% ueber der 1-Pax-Schaetzung liegen
+_PRICE_LADDER_TOP_N = 5  # Roadmap Runde 2, Punkt 2.1: nur fuer die Top-5-Kombis (extra Request je Kombi)
 
 
 def _key_of(o: FlightOffer) -> tuple:
@@ -140,8 +141,9 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
 
     group_checked = split_checked = 0
     errors: list[str] = []
+    no_bag_fetcher = _ConsentFetcher()
 
-    for key in rt_keys:
+    for idx, key in enumerate(rt_keys):
         _trip_type, origin, _destination, s_date, r_date = key
         estimated = rt_best[key]
         label = f"GROUP({t.persons}) {origin} {s_date}/{r_date}"
@@ -178,6 +180,14 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             if suspect:
                 group_off.group_check_unconfirmed = suspect
                 log.warning("%s: %s", label, suspect)
+            if idx < _PRICE_LADDER_TOP_N:
+                group_off.price_ladder["1_pax_mit_gepaeck"] = round(estimated.price_per_person, 2)
+                group_off.price_ladder["8_pax"] = round(group_off.price_per_person, 2)
+                no_bag = cheapest_price_no_bag(cfg, no_bag_fetcher, origin, s_date, r_date)
+                if no_bag is not None:
+                    group_off.price_ladder["1_pax_ohne_gepaeck"] = round(no_bag, 2)
+                else:
+                    log.info("%s: Preis-Leiter ohne Gepaeck nicht lesbar", label)
             offers.append(group_off)
             if card8["price"] > estimated.price_total:
                 reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
@@ -208,6 +218,8 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             continue
 
         per_person4 = card4["price"] / _SPLIT_SIZE
+        if card8 is not None and idx < _PRICE_LADDER_TOP_N:
+            group_off.price_ladder["4_pax"] = round(per_person4, 2)
         lower_bound = card4["price"] * 2
         if card8 is not None:
             per_person8 = card8["price"] / t.persons

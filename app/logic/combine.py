@@ -79,6 +79,7 @@ class Verdict:
                 "deep_link": f.deep_link,
                 "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
                 "segment_times_approximate": f.segment_times_approximate,
+                "price_ladder": f.price_ladder,
             },
             "return_reference": None if not r else {
                 "route": r.route, "airlines": r.airlines,

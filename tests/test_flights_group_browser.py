@@ -29,6 +29,12 @@ def _est(price=8000.0):
     ], price_total=price)
 
 
+def _no_network_ladder(monkeypatch, price=None):
+    """Preis-Leiter (Roadmap 2.1) macht sonst einen echten primp-Request -
+    in Tests immer mocken, damit sie nicht vom Netzwerk abhaengen."""
+    monkeypatch.setattr(gb, "cheapest_price_no_bag", lambda cfg, fetcher, origin, out_d, ret_d: price)
+
+
 def test_group_offer_uses_real_cheapest_cards_own_data(monkeypatch):
     # A1-Regression: das guenstigste 8-Pax-Angebot MUSS seine eigenen
     # Airlines/Segmente bekommen (Qatar/DOH/BKK), nicht die des 1-Pax-
@@ -36,6 +42,7 @@ def test_group_offer_uses_real_cheapest_cards_own_data(monkeypatch):
     # uebernommen und mit fremden Flugdaten kombiniert.
     monkeypatch.setattr(gb, "cheapest_round_trip_cards",
                         _fake_cards({8: ([CARD_QATAR, CARD_CONDOR], "https://example.test/8")}))
+    _no_network_ladder(monkeypatch)
 
     cfg = get_config()
     offers = [_est()]
@@ -61,6 +68,7 @@ def test_split_skipped_when_bucket_covers_all_eight(monkeypatch):
         8: ([card8], "https://example.test/8"),
         4: ([card4], "https://example.test/4"),
     }))
+    _no_network_ladder(monkeypatch)
     cfg = get_config()
     offers = [_est(price=7939.0 * 1.0)]  # 1-Pax-Schaetzung nah am 8er-Preis -> Split-Check laeuft gar nicht erst
     health = asyncio.run(gb.verify(cfg, offers))
@@ -77,6 +85,7 @@ def test_split_estimate_marked_as_upper_bound_not_confirmed(monkeypatch):
         8: ([card8], "https://example.test/8"),
         4: ([card4], "https://example.test/4"),
     }))
+    _no_network_ladder(monkeypatch)
     cfg = get_config()
     # 1-Pax-Schaetzung weit unter dem 8er-Preis/Pers., damit der
     # Split-Check ueberhaupt ausgeloest wird (siehe _SPLIT_WORTHWHILE_RATIO).
@@ -100,6 +109,7 @@ def test_split_falls_back_to_lower_bound_when_no_group_price(monkeypatch):
     monkeypatch.setattr(gb, "cheapest_round_trip_cards", _fake_cards({
         4: ([card4], "https://example.test/4"),
     }))
+    _no_network_ladder(monkeypatch)
     cfg = get_config()
     offers = [_est(price=6000.0)]
     health = asyncio.run(gb.verify(cfg, offers))
@@ -108,6 +118,26 @@ def test_split_falls_back_to_lower_bound_when_no_group_price(monkeypatch):
     assert len(split_offers) == 1
     assert split_offers[0].price_total == 6400.0  # 2 x 3200
     assert "UNTERGRENZE" in split_offers[0].price_confidence
+
+
+def test_price_ladder_filled_for_top_combo(monkeypatch):
+    # Roadmap Runde 2, Punkt 2.1: die guenstigste (Top-5) Kombination bekommt
+    # zusaetzlich zum bestaetigten 8-Pax-Preis einen 1-Pax-ohne-Gepaeck-Preis,
+    # damit im Dashboard sichtbar wird, was vom Preisunterschied zu einer
+    # schnellen manuellen Suche am Gepaeck liegt.
+    card8 = {**CARD_QATAR, "price": 7939.0}
+    monkeypatch.setattr(gb, "cheapest_round_trip_cards",
+                        _fake_cards({8: ([card8], "https://example.test/8")}))
+    _no_network_ladder(monkeypatch, price=650.0)
+
+    cfg = get_config()
+    offers = [_est(price=8000.0)]
+    asyncio.run(gb.verify(cfg, offers))
+
+    g = next(o for o in offers if o.pax_mode == "group")
+    assert g.price_ladder["1_pax_ohne_gepaeck"] == 650.0
+    assert g.price_ladder["1_pax_mit_gepaeck"] == 1000.0  # _est() Preis 8000 / 8
+    assert g.price_ladder["8_pax"] == round(7939.0 / 8, 2)
 
 
 def test_multicity_gets_real_group_check(monkeypatch):

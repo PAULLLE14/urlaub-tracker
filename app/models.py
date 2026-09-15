@@ -104,6 +104,8 @@ class FlightOfferRow(Base):
     # Dashboard, ob Zwischenzeiten/Umstiegsdauern angezeigt werden duerfen
     # (Roadmap Runde 2, Punkt 1.3/1.4).
     segment_times_approximate: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Roadmap Runde 2, Punkt 2.1 - siehe offers.py FlightOffer.price_ladder.
+    price_ladder: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class HotelOfferRow(Base):

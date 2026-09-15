@@ -225,7 +225,8 @@ def _to_offer(fl, *, trip_type: str, direction: str, origin: str,
     )
 
 
-def _make_query(legs: list, trip: str, cfg: Config, pax: int = SEARCH_PAX):
+def _make_query(legs: list, trip: str, cfg: Config, pax: int = SEARCH_PAX,
+                checked_bags: int | None = None):
     fc = cfg.flight_constraints
     q = create_query(
         flights=legs, seat=_SEAT_MAP.get(fc.seat_class, "economy"), trip=trip,
@@ -236,13 +237,41 @@ def _make_query(legs: list, trip: str, cfg: Config, pax: int = SEARCH_PAX):
         # 13.09.26 Nutzervorgabe: nur Tarife MIT Aufgabegepaeck vergleichen.
         # checked_bags rechnet einen etwaigen Gepaeck-Aufpreis in den Preis
         # ein, exclude_basic_economy nimmt reine Light-Tarife ganz raus.
-        checked_bags=fc.checked_bags_included_in_search,
+        # checked_bags kann hier explizit ueberschrieben werden (Roadmap
+        # Runde 2, Punkt 2.1: Preis-Leiter braucht zusaetzlich einen Preis
+        # OHNE Gepaeck zum Vergleich).
+        checked_bags=fc.checked_bags_included_in_search if checked_bags is None else checked_bags,
         exclude_basic_economy=fc.exclude_basic_economy,
     )
     try:
         return q, q.url()
     except Exception:
         return q, ""
+
+
+def cheapest_price_no_bag(cfg: Config, fetcher, origin: str, out_d: date, ret_d: date) -> float | None:
+    """1-Pax-Preis OHNE Aufgabegepaeck fuer dieselbe Route/Termine (Roadmap
+    Runde 2, Punkt 2.1: "Preis-Leiter"). Macht sichtbar, wie viel des
+    Unterschieds zu einer schnellen manuellen Google-Flights-Suche (die i.d.R.
+    ohne Gepaeck rechnet) allein am Gepaeck-Aufpreis liegt, statt an einem
+    echten Bucket-/Bestaetigungs-Unterschied."""
+    legs = [_out_leg(origin, out_d, cfg), _ret_leg(origin, ret_d, cfg)]
+    q, _ = _make_query(legs, "round-trip", cfg, pax=1, checked_bags=0)
+    try:
+        results = _run_query(q, fetcher, cfg)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Preis-Leiter (ohne Gepaeck) %s %s/%s fehlgeschlagen: %s: %s",
+                   origin, out_d, ret_d, type(exc).__name__, exc)
+        return None
+    prices = []
+    for fl in results:
+        try:
+            p = float(fl.price or 0)
+        except Exception:
+            continue
+        if p > 0:
+            prices.append(p)
+    return min(prices) if prices else None
 
 
 def _out_leg(origin: str, d: date, cfg: Config):

@@ -288,6 +288,16 @@ function flightCard(f) {
     c.appendChild(note);
   }
 
+  if (f.price_ladder && Object.keys(f.price_ladder).length) {
+    const LADDER_LABELS = { "1_pax_ohne_gepaeck": "1 Pax ohne Gepäck", "1_pax_mit_gepaeck": "1 Pax mit Gepäck", "4_pax": "4 Pax", "8_pax": "8 Pax" };
+    const order = ["1_pax_ohne_gepaeck", "1_pax_mit_gepaeck", "4_pax", "8_pax"];
+    const parts = order.filter((k) => f.price_ladder[k] != null).map((k) => `${LADDER_LABELS[k]} ${money2(f.price_ladder[k])}`);
+    if (parts.length) {
+      const ladder = el("div", "seg muted"); ladder.style.marginTop = "6px";
+      ladder.textContent = "Preis-Leiter p.P.: " + parts.join(" · ");
+      c.appendChild(ladder);
+    }
+  }
   if (f.airlines && f.airlines.length) {
     const al = el("div", "seg"); al.style.marginTop = "6px";
     al.textContent = "Airlines: " + f.airlines.join(", ");
@@ -450,6 +460,15 @@ function renderFlights(rows) {
       segTxt = `<div><strong>Hin</strong> ${outTxt}</div><div><strong>Rück</strong> ${retTxt}</div>`;
     } else {
       segTxt = (r.segments || []).map((s) => `${s.from}→${s.to} ${timeTZ(s.departure, s.departure_tz)}` + (s.plane_type ? ` (${s.plane_type})` : "")).join("  ·  ");
+    }
+    // Roadmap 2.1 "Preis-Leiter": macht sichtbar, wie viel vom Unterschied
+    // zu einer schnellen manuellen Suche am Gepaeck bzw. an der Personenzahl
+    // liegt, statt an einem echten Bucket-Unterschied.
+    if (r.price_ladder && Object.keys(r.price_ladder).length) {
+      const LADDER_LABELS = { "1_pax_ohne_gepaeck": "1 Pax o. Gepäck", "1_pax_mit_gepaeck": "1 Pax m. Gepäck", "4_pax": "4 Pax", "8_pax": "8 Pax" };
+      const order = ["1_pax_ohne_gepaeck", "1_pax_mit_gepaeck", "4_pax", "8_pax"];
+      const parts = order.filter((k) => r.price_ladder[k] != null).map((k) => `${LADDER_LABELS[k]} ${money2(r.price_ladder[k])}`);
+      if (parts.length) segTxt += `<div class="seg muted">Preis-Leiter (p.P.): ${parts.join(" · ")}</div>`;
     }
     // Roadmap 1.3: bei approximierten Segmenten sind die Umstiegsminuten
     // erfunden (gleichverteilt) - nur die echten Flughafen-Codes zeigen,

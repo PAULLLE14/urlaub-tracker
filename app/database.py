@@ -70,6 +70,7 @@ _ADDITIVE_COLUMNS = {
         ("pax_mode", "VARCHAR(12) DEFAULT 'estimated'"),
         ("price_confidence", "VARCHAR(300) DEFAULT ''"),
         ("segment_times_approximate", "BOOLEAN DEFAULT 0"),
+        ("price_ladder", "JSON DEFAULT '{}'"),
     ],
     "hotel_offer": [("is_reference", "BOOLEAN DEFAULT 0")],
     "package_offer": [("is_reference", "BOOLEAN DEFAULT 0")],
