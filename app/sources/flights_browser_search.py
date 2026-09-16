@@ -121,41 +121,36 @@ async def cheapest_round_trip_booking_options(cfg: Config, origin: str, out_d: d
     legs = [_out_leg(origin, out_d, cfg), _ret_leg(origin, ret_d, cfg)]
     q, url = _make_query(legs, "round-trip", cfg, pax=pax)
 
-    async def _select_cheapest_card(page) -> dict | None:
-        """Wartet auf die Kartenliste, waehlt den "Am guenstigsten"-Tab,
-        klickt die guenstigste Karte an. Gibt die geklickte Karte zurueck
-        (fuers Logging) oder None, wenn nichts klickbar war."""
-        with contextlib.suppress(Exception):
-            await page.wait_for_function(
-                f"document.body.innerText.includes('{_END_MARKER}') || "
-                "document.body.innerText.includes('Keine Ergebnisse')",
-                timeout=25000,
-            )
-        await wait_for_stable_result_count(page, _END_MARKER)
-        await select_cheapest_tab(page)
-        await wait_for_stable_result_count(page, _END_MARKER)
-        body = ""
-        with contextlib.suppress(Exception):
-            body = await page.inner_text("body")
-        cards = parse_cards(body, _END_MARKER)
-        if not cards:
-            return None
-        cheapest = min(cards, key=lambda c: c["price"])
-        price_int = round(cheapest["price"])
-        # Playwright-Accessible-Name der Karte: "Ab 7352 Euro für Hin- und
-        # Rückflug. Flug mit ..." - live verifiziert 16.09.26, identisches
-        # Muster fuer Hin- UND Rueckflug-Auswahl.
-        link = page.get_by_role("link", name=re.compile(
-            rf"Ab {price_int}\s*Euro für Hin- und Rückflug"))
+    _LINK_PATTERN = re.compile(r"Ab \d+\s*Euro für Hin- und Rückflug")
+
+    async def _click_cheapest_card(page, *, select_tab: bool) -> bool:
+        """Wartet auf die Kartenliste, klickt die ERSTE "Ab X Euro"-Karte.
+        Gibt False zurueck, wenn nichts klickbar war.
+
+        Nutzer-Fund 17.09.26 (isoliert per Debug-Skript nachgestellt, siehe
+        Git-Historie): die vorherige Version rief ``select_cheapest_tab()``
+        (den "Am guenstigsten"-Tab-Klick) fuer BEIDE Etappen auf - Hinflug-
+        UND Rueckflug-Auswahl. Auf der Rueckflug-Seite gibt es aber keinen
+        entsprechenden Tab mehr; der Klick traf dort vermutlich ein anderes
+        Element und brachte die Seite in einen Zustand, aus dem sie sich nie
+        wieder erholte (haengte dauerhaft bei "Preise werden abgerufen").
+        Drei identische Testlaeufe mit ``select_tab=False`` fuer die zweite
+        Etappe liefen dagegen alle zuverlaessig durch (~5-10s bis zu den
+        Buchungsoptionen). Deshalb: Tab-Klick NUR fuer die erste (Hinflug-)
+        Karte, siehe Aufrufer unten. Bewusst feste Wartezeiten statt
+        Marker-basiertem ``wait_for_stable_result_count`` - auch das war
+        Teil der urspruenglich fehlschlagenden Version."""
+        await page.wait_for_timeout(3000)
+        if select_tab:
+            await select_cheapest_tab(page)
+            await page.wait_for_timeout(8000)
+        link = page.get_by_role("link", name=_LINK_PATTERN)
         if not await link.count():
-            link = page.get_by_role("link", name=re.compile(
-                r"Ab \d+\s*Euro für Hin- und Rückflug"))
-        if not await link.count():
-            return None
+            return False
         # force=True: wie beim ITA-Matrix-/Multi-City-Kartenklick - ein
         # verschachteltes Kind-Element faengt sonst Pointer-Events ab.
         await link.first.click(timeout=8000, force=True)
-        return cheapest
+        return True
 
     async with browser_page(cfg) as page:
         with contextlib.suppress(Exception):
@@ -163,45 +158,25 @@ async def cheapest_round_trip_booking_options(cfg: Config, origin: str, out_d: d
                                              "domain": ".google.com", "path": "/"}])
         await goto(page, url)
         await dismiss_consent(page)
-        out_card = await _select_cheapest_card(page)
-        if out_card is None:
+        if not await _click_cheapest_card(page, select_tab=True):
             if cfg.sources.scraper.screenshot_on_error:
                 await save_screenshot(page, SOURCE + "-booking-options-out")
             return None
-        ret_card = await _select_cheapest_card(page)
-        if ret_card is None:
+        if not await _click_cheapest_card(page, select_tab=False):
             if cfg.sources.scraper.screenshot_on_error:
                 await save_screenshot(page, SOURCE + "-booking-options-ret")
             return None
-        # Live-Fund 16.09.26 (zwei Debug-Screenshots, CheckRun #25 UND #26):
-        # diese Seite blieb im Headless-Modus beide Male komplett bei "Preise
-        # werden abgerufen" haengen - selbst nach 40s+ Wartezeit KEIN
-        # Fortschritt (im interaktiven Test lief der Ladebalken dagegen
-        # sichtbar durch, siehe "Ergebnisse werden abgerufen, 54%/87%/...").
-        # Das ist eher ein haengengebliebener Ladezustand als "nur langsam" -
-        # ein Reload nach der ersten Wartephase stoesst den Request oft neu
-        # an (aehnliches Muster wie bei anderen haengenden SPA-Zustaenden).
-        async def _has_options() -> bool:
-            with contextlib.suppress(Exception):
-                return bool(await page.evaluate(
-                    "document.body.innerText.includes('Buchungsoptionen')"))
-            return False
-
-        with contextlib.suppress(Exception):
-            await page.wait_for_function(
-                "document.body.innerText.includes('Buchungsoptionen')", timeout=20000)
-        if not await _has_options():
-            log.info("BOOKING-OPTIONS: nach 20s noch 'Preise werden abgerufen' - Reload-Versuch")
-            with contextlib.suppress(Exception):
-                await page.reload(wait_until="domcontentloaded")
-            with contextlib.suppress(Exception):
-                await page.wait_for_function(
-                    "document.body.innerText.includes('Buchungsoptionen')", timeout=25000)
-        await wait_for_stable_result_count(page, "Weiter")
-        await page.wait_for_timeout(1000)
+        # Live gemessen (17.09.26): die Buchungsoptionen brauchten mal 5s,
+        # mal 30s (Streuung, keine feste Ladezeit) - grosszuegiges Timeout
+        # + Polling statt eines knappen Fixwerts, der genau diese 30s-Faelle
+        # verpasst haette.
         final_body = ""
-        with contextlib.suppress(Exception):
-            final_body = await page.inner_text("body")
+        for _ in range(12):
+            with contextlib.suppress(Exception):
+                final_body = await page.inner_text("body")
+            if "Buchungsoptionen" in final_body:
+                break
+            await page.wait_for_timeout(5000)
         result = parse_booking_options(final_body)
         if not result["options"]:
             if cfg.sources.scraper.screenshot_on_error:
