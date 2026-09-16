@@ -173,19 +173,30 @@ async def cheapest_round_trip_booking_options(cfg: Config, origin: str, out_d: d
             if cfg.sources.scraper.screenshot_on_error:
                 await save_screenshot(page, SOURCE + "-booking-options-ret")
             return None
-        # Live-Fund 16.09.26 (Debug-Screenshot): diese Seite zeigt zuerst nur
-        # "Preise werden abgerufen" - die Buchungsoptionen laden asynchron
-        # nach und brauchen oft LAENGER als die 20s, die hier urspruenglich
-        # angesetzt waren (Screenshot zeigte eine komplett leere Seite nach
-        # Ablauf des Timeouts). Deshalb: laengeres Timeout + zusaetzlich auf
-        # eine stabile Anzahl "Weiter"-Buttons warten (ein Button pro
-        # Buchungsoption, gleiches Prinzip wie wait_for_stable_result_count
-        # bei den Ergebniskarten).
+        # Live-Fund 16.09.26 (zwei Debug-Screenshots, CheckRun #25 UND #26):
+        # diese Seite blieb im Headless-Modus beide Male komplett bei "Preise
+        # werden abgerufen" haengen - selbst nach 40s+ Wartezeit KEIN
+        # Fortschritt (im interaktiven Test lief der Ladebalken dagegen
+        # sichtbar durch, siehe "Ergebnisse werden abgerufen, 54%/87%/...").
+        # Das ist eher ein haengengebliebener Ladezustand als "nur langsam" -
+        # ein Reload nach der ersten Wartephase stoesst den Request oft neu
+        # an (aehnliches Muster wie bei anderen haengenden SPA-Zustaenden).
+        async def _has_options() -> bool:
+            with contextlib.suppress(Exception):
+                return bool(await page.evaluate(
+                    "document.body.innerText.includes('Buchungsoptionen')"))
+            return False
+
         with contextlib.suppress(Exception):
             await page.wait_for_function(
-                "document.body.innerText.includes('Buchungsoptionen')",
-                timeout=40000,
-            )
+                "document.body.innerText.includes('Buchungsoptionen')", timeout=20000)
+        if not await _has_options():
+            log.info("BOOKING-OPTIONS: nach 20s noch 'Preise werden abgerufen' - Reload-Versuch")
+            with contextlib.suppress(Exception):
+                await page.reload(wait_until="domcontentloaded")
+            with contextlib.suppress(Exception):
+                await page.wait_for_function(
+                    "document.body.innerText.includes('Buchungsoptionen')", timeout=25000)
         await wait_for_stable_result_count(page, "Weiter")
         await page.wait_for_timeout(1000)
         final_body = ""
