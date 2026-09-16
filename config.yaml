@@ -264,14 +264,7 @@ sources:
     sonnenklar:  { enabled: true }
   # Gemeinsame Playwright-Einstellungen fuer alle Scraper
   scraper:
-    # Nutzer-Fund 16.09.26: mehrere Quellen laden im ECHTEN Browser sofort,
-    # bleiben headless aber haengen (Kayak, lastminute.com, santiburi_official,
-    # Googles Buchungsoptionen-Seite) - klassisches Headless-Erkennungsmuster.
-    # false + docker-entrypoint.sh faehrt Chromium NICHT-headless in einem
-    # virtuellen Display, sieht fuer die Zielseiten wie ein normaler Browser
-    # aus. Lokal ohne Xvfb/Display auf true stellen, sonst schlaegt der
-    # Playwright-Start fehl.
-    headless: false
+    headless: true
     nav_timeout_seconds: 45
     locale: "de-DE"
     screenshot_on_error: true    # -> artifacts/<source>_<ts>.png
