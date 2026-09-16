@@ -54,7 +54,7 @@ def flights(
     airline: str | None = None,
     max_stops: int | None = None,
     include_excluded: bool = True,
-    sort: str = Query("price", pattern="^(price|price_per_person|stops|duration|departure|origin|airline)$"),
+    sort: str = Query("price", pattern="^(price|price_per_person|stops|duration|departure|origin|airline|booking_option_price)$"),
     descending: bool = False,
 ):
     s = get_session()

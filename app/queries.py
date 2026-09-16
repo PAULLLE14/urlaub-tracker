@@ -127,6 +127,13 @@ def flights_table(session, cfg: Config, *, run: str | int | None = None,
         "departure": lambda r: r["departure"] or "",
         "origin": lambda r: (r["origin"], r["price_total"]),
         "airline": lambda r: ((r["airlines"] or [""])[0], r["price_total"]),
+        # Nutzerwunsch 16.09.26: "sortieren nach 3. Anbieter Preis" - der
+        # guenstigste Buchungsoptionen-Preis (Airline oder Drittanbieter,
+        # siehe flights_browser_search.cheapest_round_trip_booking_options),
+        # Zeilen ohne Buchungsoptionen fallen auf price_total zurueck (keine
+        # Bevorzugung, nur ein sinnvoller Default).
+        "booking_option_price": lambda r: min(
+            (o["price"] for o in r["booking_options"]), default=r["price_total"]),
     }.get(sort, lambda r: r["price_total"])
     rows.sort(key=keyfn, reverse=descending)
     rows.sort(key=lambda r: r["excluded"])
