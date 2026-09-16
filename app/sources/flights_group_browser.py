@@ -282,14 +282,17 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             log.info("GROUP(%d) %s %s/%s: Preis-Leiter ohne Gepaeck nicht lesbar",
                      t.persons, origin, s_date, r_date)
 
-    # Buchungsoptionen (Nutzer-Fund 16.09.26): NUR fuer die eine tatsaechlich
-    # guenstigste bestaetigte Kombi - kostet zwei zusaetzliche Seitenladungen
-    # (Hin- und Rueckflug-Auswahl bis zu Googles Buchungsoptionen-Seite).
-    # Zeigt Drittanbieter-Preise, die auf der normalen Ergebniskarte gar
-    # nicht auftauchen (Live-Fund: lastminute.com 300 EUR unter der Airline).
-    if top5:
-        _best_key, best_off = top5[0]
-        _trip_type, origin, _destination, s_date, r_date = _best_key
+    # Buchungsoptionen (Nutzer-Fund 16.09.26, Bugfix 17.09.26 - siehe
+    # cheapest_round_trip_booking_options()): fuer die Top-3 tatsaechlich
+    # guenstigsten bestaetigten Kombis - kostet je zwei zusaetzliche
+    # Seitenladungen (Hin- und Rueckflug-Auswahl bis zu Googles
+    # Buchungsoptionen-Seite), aber nur noch 5-30s statt eines Haengers, seit
+    # der Root-Cause-Fix steht. Zeigt Drittanbieter-Preise, die auf der
+    # normalen Ergebniskarte gar nicht auftauchen (Live-Fund: lastminute.com
+    # 300 EUR unter der Airline direkt).
+    _BOOKING_OPTIONS_TOP_N = 3
+    for key, off in top5[:_BOOKING_OPTIONS_TOP_N]:
+        _trip_type, origin, _destination, s_date, r_date = key
         label = f"BOOKING-OPTIONS({t.persons}) {origin} {s_date}/{r_date}"
         try:
             result = await cheapest_round_trip_booking_options(cfg, origin, s_date, r_date, t.persons)
@@ -297,10 +300,10 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             result = None
             log.warning("%s: Fehler %s: %s", label, type(exc).__name__, exc)
         if result and result["options"]:
-            best_off.booking_options = result["options"]
+            off.booking_options = result["options"]
             cheapest_opt = result["options"][0]
             log.info("%s: guenstigste Option %s zu %.0f EUR (Airline direkt: %.0f EUR)",
-                     label, cheapest_opt["provider"], cheapest_opt["price"], best_off.price_total)
+                     label, cheapest_opt["provider"], cheapest_opt["price"], off.price_total)
         else:
             log.info("%s: keine Buchungsoptionen lesbar", label)
 
