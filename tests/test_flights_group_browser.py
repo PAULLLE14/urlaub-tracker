@@ -30,9 +30,15 @@ def _est(price=8000.0):
 
 
 def _no_network_ladder(monkeypatch, price=None):
-    """Preis-Leiter (Roadmap 2.1) macht sonst einen echten primp-Request -
-    in Tests immer mocken, damit sie nicht vom Netzwerk abhaengen."""
+    """Preis-Leiter (Roadmap 2.1) macht sonst einen echten primp-Request,
+    und die Buchungsoptionen-Abfrage (Nutzer-Fund 16.09.26) einen echten
+    Playwright-Durchklick - in Tests immer beide mocken, damit sie nicht
+    vom Netzwerk/Browser abhaengen."""
     monkeypatch.setattr(gb, "cheapest_price_no_bag", lambda cfg, fetcher, origin, out_d, ret_d: price)
+
+    async def _no_booking_options(cfg, origin, out_d, ret_d, pax):
+        return None
+    monkeypatch.setattr(gb, "cheapest_round_trip_booking_options", _no_booking_options)
 
 
 def test_group_offer_uses_real_cheapest_cards_own_data(monkeypatch):
@@ -179,6 +185,31 @@ def test_price_ladder_uses_confirmed_top5_not_estimate_order(monkeypatch):
     # combos[1..5] (die 5 GUENSTIGSTEN bestaetigten Preise) muessen sie haben.
     for combo in combos[1:]:
         assert "1_pax_ohne_gepaeck" in group_offers[combo].price_ladder
+
+
+def test_booking_options_attached_to_cheapest_confirmed_offer(monkeypatch):
+    # Nutzer-Fund 16.09.26: die Ergebniskarte zeigt nur den Airline-Preis -
+    # fuer die tatsaechlich guenstigste bestaetigte Kombi wird zusaetzlich
+    # Googles Buchungsoptionen-Seite abgefragt (Drittanbieter oft guenstiger).
+    card8 = {**CARD_QATAR, "price": 7352.0}
+    monkeypatch.setattr(gb, "cheapest_round_trip_cards",
+                        _fake_cards({8: ([card8], "https://example.test/8")}))
+    _no_network_ladder(monkeypatch, price=650.0)
+
+    async def fake_booking_options(cfg, origin, out_d, ret_d, pax):
+        return {"lowest_total": 7080.0, "options": [
+            {"provider": "lastminute.com", "price": 7080.0, "is_airline": False},
+            {"provider": "Qatar Airways", "price": 7352.0, "is_airline": True},
+        ]}
+    monkeypatch.setattr(gb, "cheapest_round_trip_booking_options", fake_booking_options)
+
+    cfg = get_config()
+    offers = [_est(price=8000.0)]
+    asyncio.run(gb.verify(cfg, offers))
+
+    g = next(o for o in offers if o.pax_mode == "group")
+    assert g.booking_options[0]["provider"] == "lastminute.com"
+    assert g.booking_options[0]["price"] == 7080.0
 
 
 def test_multicity_gets_real_group_check(monkeypatch):

@@ -91,6 +91,15 @@ class TripCfg(BaseModel):
     # in Vergleich/Trend/Alarm einfliessen. Automatische Quellen sind bei einem
     # so speziellen Setup (3 Villen, 8 Pers., 14 Naechte, Mai 2027) unzuverlaessig.
     reference_offers: list[ReferenceOffer] = []
+    # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal (Corporate Benefits o.ae.)
+    # zeigt zusaetzliche Rabatte auf einzelne Anbieter (z.B. lastminute.com
+    # 7%), die nicht automatisch abrufbar sind (privates Login, keine feste
+    # Prozentzahl - "bis zu"/"<X%" sind Teaser). Manuell gepflegte Zuordnung
+    # Anbietername -> Rabatt-Hinweistext, wird im Dashboard als Notiz
+    # angezeigt, WENN dieser Anbieter tatsaechlich in Buchungsoptionen/
+    # Hotel-/Paket-Ergebnissen auftaucht - aendert NIE automatisch einen
+    # angezeigten Preis (der genaue Rabatt steht erst beim Checkout fest).
+    employee_discounts: dict[str, str] = {}
 
     @field_validator("origin_airports")
     @classmethod

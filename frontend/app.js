@@ -4,7 +4,22 @@ const $ = (s) => document.querySelector(s);
 const el = (t, c) => { const e = document.createElement(t); if (c) e.className = c; return e; };
 
 let CURRENCY = "EUR";
-const state = { flights: null, chart: null, chartSeries: {} };
+const state = { flights: null, chart: null, chartSeries: {}, employeeDiscounts: {} };
+
+// Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal zeigt Zusatzrabatte auf
+// einzelne Anbieter (z.B. lastminute.com 7%) - manuell in config.yaml
+// gepflegt (trip.employee_discounts), hier nur als Hinweistext neben dem
+// jeweiligen Anbieter angezeigt, AENDERT NIE einen angezeigten Preis (der
+// genaue Rabatt/Verfuegbarkeit steht erst beim Checkout fest).
+function employeeDiscountNote(provider) {
+  if (!provider) return "";
+  const p = provider.toLowerCase();
+  const hit = Object.entries(state.employeeDiscounts).find(([name]) => {
+    const n = name.toLowerCase();
+    return p.includes(n) || n.includes(p);
+  });
+  return hit ? ` <span class="tag teal" title="${hit[1].replace(/"/g, '&quot;')}">Mitarbeiterrabatt möglich</span>` : "";
+}
 
 const CAT_LABELS = {
   flight_total: "Flug (Hin+Rück)",
@@ -75,6 +90,7 @@ function renderCountdown(s) {
 async function loadStatus() {
   const s = await api("/api/status");
   CURRENCY = s.currency || "EUR";
+  state.employeeDiscounts = s.employee_discounts || {};
   $("#tripLabel").textContent = s.trip || "";
   if (s.last_run) {
     $("#lastRun").textContent = `letzter Check: ${dt(s.last_run.finished_at || s.last_run.started_at)} (#${s.last_run.id}, ${s.last_run.status})`;
@@ -288,6 +304,21 @@ function flightCard(f) {
     c.appendChild(note);
   }
 
+  // Nutzer-Fund 16.09.26: die Ergebniskarte zeigt nur den Airline-Preis -
+  // Googles Buchungsoptionen-Seite hat oft einen deutlich guenstigeren
+  // Drittanbieter (Live-Fund: lastminute.com 300 EUR unter Qatar Airways
+  // direkt). Nur fuer die eine guenstigste bestaetigte Kombi abgefragt.
+  if (f.booking_options && f.booking_options.length) {
+    const box = el("div", "seg"); box.style.marginTop = "6px";
+    const label = el("div", "muted"); label.textContent = "Buchungsoptionen:";
+    box.appendChild(label);
+    f.booking_options.forEach((o) => {
+      const line = el("div");
+      line.innerHTML = `${o.is_airline ? `<strong>${o.provider}</strong> (Fluggesellschaft)` : o.provider}: ${money2(o.price)}${employeeDiscountNote(o.provider)}`;
+      box.appendChild(line);
+    });
+    c.appendChild(box);
+  }
   if (f.price_ladder && Object.keys(f.price_ladder).length) {
     const LADDER_LABELS = { "1_pax_ohne_gepaeck": "1 Pax ohne Gepäck", "1_pax_mit_gepaeck": "1 Pax mit Gepäck", "4_pax": "4 Pax", "8_pax": "8 Pax" };
     const order = ["1_pax_ohne_gepaeck", "1_pax_mit_gepaeck", "4_pax", "8_pax"];
@@ -470,6 +501,10 @@ function renderFlights(rows) {
       const parts = order.filter((k) => r.price_ladder[k] != null).map((k) => `${LADDER_LABELS[k]} ${money2(r.price_ladder[k])}`);
       if (parts.length) segTxt += `<div class="seg muted">Preis-Leiter (p.P.): ${parts.join(" · ")}</div>`;
     }
+    if (r.booking_options && r.booking_options.length) {
+      const opts = r.booking_options.map((o) => `${o.provider}${o.is_airline ? " (Airline)" : ""} ${money2(o.price)}`).join(" · ");
+      segTxt += `<div class="seg muted">Buchungsoptionen: ${opts}</div>`;
+    }
     // Roadmap 1.3: bei approximierten Segmenten sind die Umstiegsminuten
     // erfunden (gleichverteilt) - nur die echten Flughafen-Codes zeigen,
     // kein "0h", das wie eine echte Messung aussieht.
@@ -605,7 +640,7 @@ async function loadHotels() {
       <td class="mono nowrap" data-label="Gesamt">${money(r.price_total)}</td>
       <td class="mono nowrap" data-label="pro Nacht">${money(r.per_night)}<div class="seg muted">×${r.rooms}×${r.nights}N</div></td>
       <td class="nowrap">${r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">→</a>` : ""}</td>
-      <td title="${basisTip.replace(/"/g, '&quot;')}">${r.source}${refBadge}${est}${roomSplit}${villa}${otas}</td>
+      <td title="${basisTip.replace(/"/g, '&quot;')}">${r.source}${refBadge}${est}${employeeDiscountNote(r.source)}${roomSplit}${villa}${otas}</td>
       <td class="small" data-label="Zimmer/Gäste">${r.rooms} / ${r.guests}</td>
       <td class="small" data-label="Status">${statusCell}</td>
       <td class="small nowrap hide-narrow" data-label="erfasst">${dt(r.captured_at)}</td>`;

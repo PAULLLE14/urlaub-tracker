@@ -54,6 +54,7 @@ def _flight_row(run_id: int, o: FlightOffer) -> FlightOfferRow:
         pax_mode=o.pax_mode, price_confidence=o.price_confidence,
         segment_times_approximate=o.segment_times_approximate,
         price_ladder=o.price_ladder,
+        booking_options=o.booking_options,
     )
 
 

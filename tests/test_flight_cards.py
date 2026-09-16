@@ -4,8 +4,35 @@ from app.sources.flight_cards import (
     build_approx_segments,
     confirmed_dates,
     implausible_price_reason,
+    parse_booking_options,
     parse_cards,
 )
+
+SAMPLE_BOOKING_OPTIONS = """Zusammenfassung des Flugreiseplans
+Teilen
+Frankfurt am Main
+Ko Samui
+Hin- und RückreiseEconomy Class
+8 Passagiere
+7.080 €
+Niedrigster Gesamtpreis
+Ausgewählte Flüge
+Buchungsoptionen
+Sortierung der Optionen
+Weitere Informationen zu Buchungsoptionen
+Bei Qatar Airways buchenFluggesellschaft
+7.352 €
+Weiter
+Ansichtsoptionen
+Bei lastminute.com buchen
+7.080 €
+Weiter
+Ansichtsoptionen
+Bei Tripado buchen
+7.389 €
+Weiter
+Ansichtsoptionen
+"""
 
 SAMPLE_OUTBOUND = """Suchergebnisse
 4 Ergebnisse.
@@ -143,6 +170,22 @@ def test_confirmed_dates_parses_googles_own_text():
 
 def test_confirmed_dates_none_when_block_missing():
     assert confirmed_dates("irgendein anderer Seitentext ohne den Baustein") is None
+
+
+def test_parse_booking_options_finds_cheaper_third_party():
+    # Live-Fund 16.09.26: die Listenkarte zeigt nur den Airline-Preis
+    # (7.352 EUR Qatar), die Buchungsoptionen-Seite zeigt lastminute.com
+    # fast 300 EUR guenstiger (7.080 EUR) - das ist der eigentliche
+    # "Niedrigster Gesamtpreis", den Google selbst oben ausweist.
+    result = parse_booking_options(SAMPLE_BOOKING_OPTIONS)
+    assert result["lowest_total"] == 7080.0
+    assert len(result["options"]) == 3
+    assert result["options"][0]["provider"] == "lastminute.com"
+    assert result["options"][0]["price"] == 7080.0
+    assert result["options"][0]["is_airline"] is False
+    qatar = next(o for o in result["options"] if o["provider"] == "Qatar Airways")
+    assert qatar["price"] == 7352.0
+    assert qatar["is_airline"] is True
 
 
 def test_build_segments_real_airports_synthetic_times():

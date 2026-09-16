@@ -36,6 +36,7 @@ def status_payload(session, cfg: Config, scheduler_info: dict | None = None) -> 
     return {
         "trip": cfg.trip.label,
         "currency": cfg.trip.currency,
+        "employee_discounts": cfg.trip.employee_discounts,
         "departure_date": cfg.trip.outbound_dates[0].isoformat() if cfg.trip.outbound_dates else None,
         "hotel_checkin": cfg.trip.hotel_checkin.isoformat(),
         "hotel_checkout": cfg.trip.hotel_checkout.isoformat(),
@@ -83,6 +84,7 @@ def flight_offer_dict(f: FlightOfferRow) -> dict[str, Any]:
         "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
         "segment_times_approximate": f.segment_times_approximate,
         "price_ladder": f.price_ladder,
+        "booking_options": f.booking_options,
     }
 
 

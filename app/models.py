@@ -106,6 +106,8 @@ class FlightOfferRow(Base):
     segment_times_approximate: Mapped[bool] = mapped_column(Boolean, default=False)
     # Roadmap Runde 2, Punkt 2.1 - siehe offers.py FlightOffer.price_ladder.
     price_ladder: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Nutzer-Fund 16.09.26 - siehe offers.py FlightOffer.booking_options.
+    booking_options: Mapped[list] = mapped_column(JSON, default=list)
 
 
 class HotelOfferRow(Base):

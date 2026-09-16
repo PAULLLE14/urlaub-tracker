@@ -80,6 +80,7 @@ class Verdict:
                 "pax_mode": f.pax_mode, "price_confidence": f.price_confidence,
                 "segment_times_approximate": f.segment_times_approximate,
                 "price_ladder": f.price_ladder,
+                "booking_options": f.booking_options,
             },
             "return_reference": None if not r else {
                 "route": r.route, "airlines": r.airlines,

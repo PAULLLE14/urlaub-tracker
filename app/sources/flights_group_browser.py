@@ -75,7 +75,7 @@ from ..logging_setup import get_logger
 from ..offers import FlightOffer
 from .flight_cards import build_approx_segments, cheapest_card, implausible_price_reason
 from .flights import _ConsentFetcher, _flag_duplicate_estimates, cheapest_price_no_bag
-from .flights_browser_search import cheapest_round_trip_cards
+from .flights_browser_search import cheapest_round_trip_booking_options, cheapest_round_trip_cards
 from .flights_multicity_browser import _search_one as _mc_search_one
 
 log = get_logger("source.flights_group_browser")
@@ -270,6 +270,28 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
         else:
             log.info("GROUP(%d) %s %s/%s: Preis-Leiter ohne Gepaeck nicht lesbar",
                      t.persons, origin, s_date, r_date)
+
+    # Buchungsoptionen (Nutzer-Fund 16.09.26): NUR fuer die eine tatsaechlich
+    # guenstigste bestaetigte Kombi - kostet zwei zusaetzliche Seitenladungen
+    # (Hin- und Rueckflug-Auswahl bis zu Googles Buchungsoptionen-Seite).
+    # Zeigt Drittanbieter-Preise, die auf der normalen Ergebniskarte gar
+    # nicht auftauchen (Live-Fund: lastminute.com 300 EUR unter der Airline).
+    if top5:
+        _best_key, best_off = top5[0]
+        _trip_type, origin, _destination, s_date, r_date = _best_key
+        label = f"BOOKING-OPTIONS({t.persons}) {origin} {s_date}/{r_date}"
+        try:
+            result = await cheapest_round_trip_booking_options(cfg, origin, s_date, r_date, t.persons)
+        except Exception as exc:  # noqa: BLE001
+            result = None
+            log.warning("%s: Fehler %s: %s", label, type(exc).__name__, exc)
+        if result and result["options"]:
+            best_off.booking_options = result["options"]
+            cheapest_opt = result["options"][0]
+            log.info("%s: guenstigste Option %s zu %.0f EUR (Airline direkt: %.0f EUR)",
+                     label, cheapest_opt["provider"], cheapest_opt["price"], best_off.price_total)
+        else:
+            log.info("%s: keine Buchungsoptionen lesbar", label)
 
     # Multi-City (A3): kein Split-Check (das 2-Klick-Routing macht eine
     # zusaetzliche 4-Pax-Suche unverhaeltnismaessig teuer) - nur die echte

@@ -91,6 +91,13 @@ trip:
       note: "3 Zimmer, 8 Personen, 14 Naechte"
       url: ""                  # Link zum Angebot (optional)
 
+  # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal zeigt Zusatzrabatte auf
+  # einzelne Anbieter - manuell nachtragen, wenn ein Anbieter tatsaechlich in
+  # Buchungsoptionen/Hotel-/Paketergebnissen auftaucht (siehe TripCfg-
+  # Kommentar in config.py). Aendert nie automatisch einen Preis.
+  employee_discounts:
+    "lastminute.com": "7% Rabatt (Flug+Hotel) laut Mitarbeiter-Rabattportal - Code dort abrufen, gilt erst ab Checkout"
+
 # --- Harte Constraints fuer die Flugsuche -----------------------------------
 flight_constraints:
   max_stops_per_direction: 2

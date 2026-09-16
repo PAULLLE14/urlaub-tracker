@@ -64,6 +64,45 @@ def confirmed_dates(body: str) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
+# Nutzer-Fund 16.09.26: die Ergebnisliste zeigt pro Karte NUR den Preis der
+# Fluggesellschaft direkt (z.B. 7.352 EUR bei Qatar Airways) - klickt man sich
+# bis zu Googles "Buchungsoptionen"-Seite durch (Hinflug waehlen, dann
+# Rueckflug waehlen), zeigt Google ALLE buchbaren Anbieter inkl. Drittanbieter
+# (Live-Fund: lastminute.com 7.080 EUR - fast 300 EUR guenstiger als die
+# Airline direkt). Diese Seite listet Bloecke wie:
+#   "Bei Qatar Airways buchenFluggesellschaft\n7.352 €\nWeiter\nAnsichtsoptionen"
+#   "Bei lastminute.com buchen\n7.080 €\nWeiter\nAnsichtsoptionen"
+# und einen Kopf-Badge "7.080 €\nNiedrigster Gesamtpreis".
+_BOOKING_OPTION = re.compile(
+    r"Bei\s+(?P<provider>.+?)\s+buchen(?P<is_airline>Fluggesellschaft)?\s*\n"
+    r"\s*(?P<price>[\d.,]+)\s?€\s*\nWeiter",
+)
+_LOWEST_TOTAL = re.compile(r"([\d.,]+)\s?€\s*\nNiedrigster Gesamtpreis")
+
+
+def parse_booking_options(body: str) -> dict:
+    """Alle Buchungsoptionen (Airline + Drittanbieter) von Googles finaler
+    Buchungsoptionen-Seite, sortiert nach Preis. ``lowest_total`` ist Googles
+    eigener "Niedrigster Gesamtpreis"-Badge (Kreuzcheck: sollte dem
+    guenstigsten Eintrag in ``options`` entsprechen)."""
+    lowest = None
+    m = _LOWEST_TOTAL.search(body)
+    if m:
+        lowest = parse_money(m.group(1))
+    options = []
+    for m in _BOOKING_OPTION.finditer(body):
+        price = parse_money(m.group("price"))
+        if not price:
+            continue
+        options.append({
+            "provider": m.group("provider").strip(),
+            "price": price,
+            "is_airline": bool(m.group("is_airline")),
+        })
+    options.sort(key=lambda o: o["price"])
+    return {"lowest_total": lowest, "options": options}
+
+
 def implausible_price_reason(price_per_person: float) -> str:
     """Leerstring wenn plausibel, sonst ein Grund fuer
     ``FlightOffer.group_check_unconfirmed`` (siehe Docstring oben)."""

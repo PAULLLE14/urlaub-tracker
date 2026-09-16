@@ -114,6 +114,16 @@ class FlightOffer:
     # Nur auf dem "group"-Angebot (echter 8-Pax-Preis) gesetzt, leer sonst.
     price_ladder: dict = field(default_factory=dict)
 
+    # Nutzer-Fund 16.09.26: die Ergebnisliste zeigt nur den Preis der
+    # Fluggesellschaft direkt - Googles "Buchungsoptionen"-Seite (nach Hin-
+    # UND Rueckflug-Auswahl) zeigt zusaetzlich alle Drittanbieter, teils
+    # deutlich guenstiger (Live-Fund: lastminute.com 300 EUR unter Qatar
+    # Airways direkt). Liste von {provider, price, is_airline}, sortiert
+    # nach Preis; nur fuer die tatsaechlich guenstigste bestaetigte Kombi
+    # abgefragt (siehe flights_group_browser.py) - zwei zusaetzliche
+    # Seitenladungen pro Abfrage, daher nicht fuer jedes Angebot.
+    booking_options: list = field(default_factory=list)
+
     # ---- abgeleitete Werte (kombinieren Hin- + ggf. Rueckstrecke) ---------
     @staticmethod
     def _leg_stops(segs: list[Segment]) -> int:

@@ -22,11 +22,12 @@ Module gegenseitig importieren).
 from __future__ import annotations
 
 import contextlib
+import re
 from datetime import date
 
 from ..config import Config
 from ..logging_setup import get_logger
-from .flight_cards import confirmed_dates, parse_cards
+from .flight_cards import confirmed_dates, parse_booking_options, parse_cards
 from .scraper_base import (
     browser_page,
     dismiss_consent,
@@ -94,3 +95,97 @@ async def cheapest_round_trip_cards(cfg: Config, origin: str, out_d: date, ret_d
         if not cards and cfg.sources.scraper.screenshot_on_error:
             await save_screenshot(page, SOURCE)
         return cards, url
+
+
+async def cheapest_round_trip_booking_options(cfg: Config, origin: str, out_d: date,
+                                              ret_d: date, pax: int) -> dict | None:
+    """Klickt sich bis zu Googles finaler "Buchungsoptionen"-Seite durch
+    (Hinflug waehlen -> Rueckflug waehlen - wie bei Multi-City, siehe
+    ``flights_multicity_browser._search_one``) und liest ALLE Buchungs-
+    optionen aus, nicht nur den Airline-Preis der Listenkarte.
+
+    Live-Fund 16.09.26 (Nutzer-Screenshot): die Ergebniskarte zeigt nur
+    den Preis der Fluggesellschaft direkt (Qatar Airways, 7.352 EUR) -
+    Googles eigene Buchungsoptionen-Seite fuer DIESELBE Kombination zeigte
+    lastminute.com fuer 7.080 EUR, fast 300 EUR guenstiger, als tatsaechlich
+    niedrigsten "Gesamtpreis". ``flight_cards.parse_booking_options()``
+    liest diese Liste (Airline + alle Drittanbieter, sortiert nach Preis).
+
+    Nur fuer wenige Top-Kombinationen aufrufen (siehe Aufrufer) - kostet
+    zwei zusaetzliche Klicks/Seitenladungen pro Kombi. Gibt None zurueck,
+    wenn der Klick-Pfad an irgendeiner Stelle nicht durchlief (z.B. keine
+    Ergebnisse mehr, Layout-Aenderung) - dann bleibt der schon bekannte
+    Airline-Preis die einzige Zahl, kein Fehler fuers Gesamtergebnis."""
+    from .flights import _make_query, _out_leg, _ret_leg
+
+    legs = [_out_leg(origin, out_d, cfg), _ret_leg(origin, ret_d, cfg)]
+    q, url = _make_query(legs, "round-trip", cfg, pax=pax)
+
+    async def _select_cheapest_card(page) -> dict | None:
+        """Wartet auf die Kartenliste, waehlt den "Am guenstigsten"-Tab,
+        klickt die guenstigste Karte an. Gibt die geklickte Karte zurueck
+        (fuers Logging) oder None, wenn nichts klickbar war."""
+        with contextlib.suppress(Exception):
+            await page.wait_for_function(
+                f"document.body.innerText.includes('{_END_MARKER}') || "
+                "document.body.innerText.includes('Keine Ergebnisse')",
+                timeout=25000,
+            )
+        await wait_for_stable_result_count(page, _END_MARKER)
+        await select_cheapest_tab(page)
+        await wait_for_stable_result_count(page, _END_MARKER)
+        body = ""
+        with contextlib.suppress(Exception):
+            body = await page.inner_text("body")
+        cards = parse_cards(body, _END_MARKER)
+        if not cards:
+            return None
+        cheapest = min(cards, key=lambda c: c["price"])
+        price_int = round(cheapest["price"])
+        # Playwright-Accessible-Name der Karte: "Ab 7352 Euro für Hin- und
+        # Rückflug. Flug mit ..." - live verifiziert 16.09.26, identisches
+        # Muster fuer Hin- UND Rueckflug-Auswahl.
+        link = page.get_by_role("link", name=re.compile(
+            rf"Ab {price_int}\s*Euro für Hin- und Rückflug"))
+        if not await link.count():
+            link = page.get_by_role("link", name=re.compile(
+                r"Ab \d+\s*Euro für Hin- und Rückflug"))
+        if not await link.count():
+            return None
+        # force=True: wie beim ITA-Matrix-/Multi-City-Kartenklick - ein
+        # verschachteltes Kind-Element faengt sonst Pointer-Events ab.
+        await link.first.click(timeout=8000, force=True)
+        return cheapest
+
+    async with browser_page(cfg) as page:
+        with contextlib.suppress(Exception):
+            await page.context.add_cookies([{"name": "SOCS", "value": "CAI",
+                                             "domain": ".google.com", "path": "/"}])
+        await goto(page, url)
+        await dismiss_consent(page)
+        out_card = await _select_cheapest_card(page)
+        if out_card is None:
+            if cfg.sources.scraper.screenshot_on_error:
+                await save_screenshot(page, SOURCE + "-booking-options-out")
+            return None
+        ret_card = await _select_cheapest_card(page)
+        if ret_card is None:
+            if cfg.sources.scraper.screenshot_on_error:
+                await save_screenshot(page, SOURCE + "-booking-options-ret")
+            return None
+        with contextlib.suppress(Exception):
+            await page.wait_for_function(
+                "document.body.innerText.includes('Buchungsoptionen') || "
+                "document.body.innerText.includes('Niedrigster Gesamtpreis')",
+                timeout=20000,
+            )
+        await page.wait_for_timeout(1200)
+        final_body = ""
+        with contextlib.suppress(Exception):
+            final_body = await page.inner_text("body")
+        result = parse_booking_options(final_body)
+        if not result["options"]:
+            if cfg.sources.scraper.screenshot_on_error:
+                await save_screenshot(page, SOURCE + "-booking-options-empty")
+            return None
+        return result
