@@ -173,13 +173,21 @@ async def cheapest_round_trip_booking_options(cfg: Config, origin: str, out_d: d
             if cfg.sources.scraper.screenshot_on_error:
                 await save_screenshot(page, SOURCE + "-booking-options-ret")
             return None
+        # Live-Fund 16.09.26 (Debug-Screenshot): diese Seite zeigt zuerst nur
+        # "Preise werden abgerufen" - die Buchungsoptionen laden asynchron
+        # nach und brauchen oft LAENGER als die 20s, die hier urspruenglich
+        # angesetzt waren (Screenshot zeigte eine komplett leere Seite nach
+        # Ablauf des Timeouts). Deshalb: laengeres Timeout + zusaetzlich auf
+        # eine stabile Anzahl "Weiter"-Buttons warten (ein Button pro
+        # Buchungsoption, gleiches Prinzip wie wait_for_stable_result_count
+        # bei den Ergebniskarten).
         with contextlib.suppress(Exception):
             await page.wait_for_function(
-                "document.body.innerText.includes('Buchungsoptionen') || "
-                "document.body.innerText.includes('Niedrigster Gesamtpreis')",
-                timeout=20000,
+                "document.body.innerText.includes('Buchungsoptionen')",
+                timeout=40000,
             )
-        await page.wait_for_timeout(1200)
+        await wait_for_stable_result_count(page, "Weiter")
+        await page.wait_for_timeout(1000)
         final_body = ""
         with contextlib.suppress(Exception):
             final_body = await page.inner_text("body")
