@@ -23,6 +23,34 @@ def _mc(price, out_origin="STR", ret_dest="MUC"):
     return mc_offer(out, ret, price_total=price)
 
 
+def test_confirmed_price_wins_over_marginally_cheaper_split_estimate():
+    # Nutzer-Fund 16.09.26: eine split_4_4-Schaetzung ist nur eine
+    # konservative OBERGRENZE, kein bestaetigter Preis - darf einen echt
+    # gepruefften Preis nicht schon bei einem knappen (<3%) rechnerischen
+    # Vorsprung verdraengen (widerspraeche "keine Schaetzungen, nur harte
+    # Pruefungen"). Gleiches Datumspaar fuer beide -> Hotelnaechte-Delta
+    # spielt hier keine Rolle, reiner Preisvergleich.
+    c = get_config()
+    confirmed = _rt(7632)
+    confirmed.pax_mode = "group"
+    split = _rt(7500)  # nur 1.7% guenstiger als confirmed - zu knapp
+    split.pax_mode = "split_4_4"
+    v = build_verdict([confirmed, split], [], [], c)
+    assert v.flight is confirmed
+    assert v.flight_total == 7632
+
+
+def test_split_estimate_wins_when_clearly_cheaper():
+    c = get_config()
+    confirmed = _rt(7632)
+    confirmed.pax_mode = "group"
+    split = _rt(7000)  # >3% guenstiger - darf gewinnen
+    split.pax_mode = "split_4_4"
+    v = build_verdict([confirmed, split], [], [], c)
+    assert v.flight is split
+    assert v.flight_total == 7000
+
+
 def test_only_connected_bookings_count():
     c = get_config()
     v = build_verdict([_rt(7600), _rt(9200)], [], [], c)

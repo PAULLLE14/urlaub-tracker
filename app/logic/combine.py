@@ -184,6 +184,30 @@ def _pick_flight(flights: list[FlightOffer], hotel: HotelOffer | None,
     # passendes Hotel) entscheidet, welche Kombination wirklich am
     # guenstigsten ist.
     best = min(connected, key=lambda o: _true_total(o, hotel, cfg))
+
+    # Nutzer-Fund 16.09.26: eine split_4_4-Schaetzung ist IMMER nur eine
+    # konservative OBERGRENZE (siehe offers.py price_confidence), kein
+    # bestaetigter Preis - trotzdem konnte sie bisher schon bei einem
+    # knappen rechnerischen Vorsprung einen echt GEPRUEFTEN Preis (pax_mode
+    # "group") als Kopf-Zahl verdraengen. Das widerspricht "keine
+    # Schaetzungen, nur harte Pruefungen": ein Vorsprung von nur 1-2% ist bei
+    # einer Obergrenzen-Schaetzung kein verlaesslicher Vorteil. Nur wenn die
+    # Schaetzung SPUERBAR (>3%) guenstiger bleibt, darf sie gewinnen.
+    _CONFIRMED_PREFERENCE_MARGIN = 0.97  # Schaetzung muss <=97% des bestaetigten Preises sein
+    if best.pax_mode != "group":
+        confirmed_opts = [o for o in connected if o.pax_mode == "group"]
+        if confirmed_opts:
+            best_confirmed = min(confirmed_opts, key=lambda o: _true_total(o, hotel, cfg))
+            if _true_total(best, hotel, cfg) >= _true_total(best_confirmed, hotel, cfg) * _CONFIRMED_PREFERENCE_MARGIN:
+                notes.append(
+                    f"Eine Schaetzung ({best.price_total:.0f} EUR, {best.pax_mode}, "
+                    f"{best.search_date} -> {best.return_date}) war rechnerisch knapp "
+                    f"guenstiger, ist aber nur eine Obergrenzen-Schaetzung, kein "
+                    f"bestaetigter Preis - bei einem Abstand unter 3% gewinnt der echt "
+                    f"geprueften Preis ({best_confirmed.price_total:.0f} EUR, "
+                    f"{best_confirmed.search_date} -> {best_confirmed.return_date}).")
+                best = best_confirmed
+
     cheapest_raw = min(connected, key=lambda o: o.price_total)
     if best is not cheapest_raw and _true_total(best, hotel, cfg) < _true_total(cheapest_raw, hotel, cfg):
         # Bugfix (Roadmap Runde 2, Punkt 1.6): delta_word(0) liefert "0
