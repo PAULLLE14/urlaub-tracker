@@ -150,6 +150,27 @@ async def expand_more_results(page) -> None:
             return
 
 
+async def select_cheapest_tab(page) -> bool:
+    """Klickt den "Am günstigsten"-Tab bei Google Flights statt des
+    default-aktiven "Beste Flüge"-Tabs (sortiert nach Preis+Komfort-Mix,
+    NICHT nach dem tatsaechlich guenstigsten Preis). Nutzer-Fund 16.09.26:
+    Dashboard zeigte 7.944 EUR als guenstigsten Preis - auf derselben
+    Google-Seite, nur auf diesem separaten Tab, stand der echte guenstigste
+    Preis von 7.352 EUR. Ohne diesen Klick liest der Parser bestenfalls einen
+    von Google "empfohlenen", aber nicht den billigsten Flug. force=True
+    noetig (wie beim ITA-Matrix-Tab-Klick) - ein einfacher Klick registriert
+    hier oft nicht. Gibt True zurueck, wenn der Tab gefunden/geklickt wurde -
+    False ist kein Fehler (manche Suchen zeigen nur einen Tab, wenn "Beste
+    Fluege" und "guenstigste" identisch sind)."""
+    with contextlib.suppress(Exception):
+        tab = page.get_by_role("tab", name=re.compile("Am günstigsten"))
+        if await tab.count():
+            await tab.first.click(timeout=5000, force=True)
+            await page.wait_for_timeout(600)
+            return True
+    return False
+
+
 async def save_screenshot(page, source: str) -> str:
     ARTIFACT_DIR.mkdir(exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

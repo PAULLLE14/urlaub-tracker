@@ -33,6 +33,7 @@ from .scraper_base import (
     expand_more_results,
     goto,
     save_screenshot,
+    select_cheapest_tab,
     wait_for_stable_result_count,
 )
 
@@ -63,6 +64,10 @@ async def cheapest_round_trip_cards(cfg: Config, origin: str, out_d: date, ret_d
                 "document.body.innerText.includes('Keine Ergebnisse')",
                 timeout=25000,
             )
+        await wait_for_stable_result_count(page, _END_MARKER)
+        # Nutzer-Fund 16.09.26: ohne diesen Klick bleiben wir auf "Beste
+        # Fluege" (Preis+Komfort-Mix) - siehe select_cheapest_tab().
+        await select_cheapest_tab(page)
         await wait_for_stable_result_count(page, _END_MARKER)
         await expand_more_results(page)
         await wait_for_stable_result_count(page, _END_MARKER)

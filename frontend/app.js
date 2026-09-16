@@ -573,9 +573,11 @@ async function loadHotels() {
     const tr = el("tr", r.ok ? "" : "excluded");
     const raw = r.raw || {};
     const refBadge = r.is_reference ? ` <span class="tag">Referenz</span>` : "";
-    const basis = r.is_reference
-      ? (raw.note ? `<div class="seg muted">${raw.note}</div>` : "")
-      : (raw.basis ? `<div class="seg muted">${raw.basis}</div>` : "");
+    // Nutzerwunsch 16.09.26: "keine unnoetige Info" - die lange Methodik-
+    // Erklaerung (basis/note) steht jetzt als Tooltip auf dem Quellnamen
+    // statt als eigene Textzeile, die konkreten Zahlen (Zimmeraufteilung,
+    // OTA-Preise, Villa-Preis) bleiben sichtbar.
+    const basisTip = (r.is_reference ? raw.note : raw.basis) || "";
     const est = raw.estimate ? ` <span class="pill durchschnitt" style="font-size:10px">Richtwert</span>` : "";
     const villa = raw.villa_min_per_night ? `<div class="seg muted">Villa ≥3 Gäste ab ${money(raw.villa_min_per_night)}/Nacht</div>` : "";
     const otas = raw.otas && Object.keys(raw.otas).length
@@ -594,16 +596,19 @@ async function loadHotels() {
       }
     }
     let statusCell;
-    if (r.ok) statusCell = `ok${est}${r.error ? `<div class="seg" style="color:var(--amber)">${r.error}</div>` : ""}`;
+    if (r.ok) statusCell = `ok${r.error ? `<div class="seg" style="color:var(--amber)">${r.error}</div>` : ""}`;
     else statusCell = `<span class="reason">${r.error || "fehlgeschlagen"}</span>`;
+    // Nutzerwunsch 16.09.26: wie bei der Flugtabelle Preis+Link LINKS statt
+    // rechts (kein Scrollen zum Wichtigsten noetig), Quelle mit den
+    // konkreten Daten (Zimmeraufteilung/OTA/Villa) danach.
     tr.innerHTML = `
-      <td>${r.source}${refBadge}${basis}${roomSplit}${villa}${otas}</td>
       <td class="mono nowrap" data-label="Gesamt">${money(r.price_total)}</td>
       <td class="mono nowrap" data-label="pro Nacht">${money(r.per_night)}<div class="seg muted">×${r.rooms}×${r.nights}N</div></td>
+      <td class="nowrap">${r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">→</a>` : ""}</td>
+      <td title="${basisTip.replace(/"/g, '&quot;')}">${r.source}${refBadge}${est}${roomSplit}${villa}${otas}</td>
       <td class="small" data-label="Zimmer/Gäste">${r.rooms} / ${r.guests}</td>
       <td class="small" data-label="Status">${statusCell}</td>
-      <td class="small nowrap" data-label="erfasst">${dt(r.captured_at)}</td>
-      <td class="nowrap">${r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">→ öffnen</a>` : ""}</td>`;
+      <td class="small nowrap hide-narrow" data-label="erfasst">${dt(r.captured_at)}</td>`;
     tb.appendChild(tr);
   }
 }

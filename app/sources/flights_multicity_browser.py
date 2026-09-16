@@ -44,6 +44,7 @@ from .scraper_base import (
     expand_more_results,
     goto,
     save_screenshot,
+    select_cheapest_tab,
     wait_for_stable_result_count,
 )
 
@@ -75,6 +76,12 @@ async def _wait_for_cards(page) -> None:
     # Nicht mehr fest 1.2s warten (13.09.26 Nutzervorgabe: reichte nicht
     # zuverlaessig) - stattdessen warten, bis sich die Kartenzahl 2s lang
     # nicht mehr aendert, dann "Mehr Fluege ansehen" aufklappen.
+    await wait_for_stable_result_count(page, "gesamte Reise")
+    # Nutzer-Fund 16.09.26: sowohl die Hinflug- als auch die Rueckflug-Liste
+    # zeigen standardmaessig "Beste Fluege" (Preis+Komfort-Mix), nicht den
+    # tatsaechlich guenstigsten Preis - siehe select_cheapest_tab(). Diese
+    # Funktion wird fuer BEIDE Etappen aufgerufen, deckt also beide ab.
+    await select_cheapest_tab(page)
     await wait_for_stable_result_count(page, "gesamte Reise")
     await expand_more_results(page)
     await wait_for_stable_result_count(page, "gesamte Reise")
