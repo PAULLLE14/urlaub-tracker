@@ -21,9 +21,12 @@ WORKDIR /app
 # sofort durch, bleiben im headless-Modus aber haengen (klassisches Muster
 # fuer Headless-Erkennung). xvfb-run startet Chromium NICHT-headless in
 # einem virtuellen Display - sieht fuer Google wie ein normaler Browser aus,
-# ohne dass der Server einen echten Bildschirm braucht.
+# ohne dass der Server einen echten Bildschirm braucht. xauth wird von
+# xvfb-run selbst gebraucht (X11-Auth-Cookie) - ohne dieses Paket crash-
+# looped der Container sofort mit "xauth command not found" (live erlebt
+# beim ersten Deploy-Versuch).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        wget gnupg ca-certificates tzdata xvfb \
+        wget gnupg ca-certificates tzdata xvfb xauth \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
