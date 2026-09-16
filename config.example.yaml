@@ -213,6 +213,10 @@ sources:
     sonnenklar:  { enabled: true }
   # Gemeinsame Playwright-Einstellungen fuer alle Scraper
   scraper:
+    # true fuer lokale Entwicklung (kein Display noetig). Im Docker-Deploy
+    # (siehe Dockerfile/docker-entrypoint.sh) auf false stellen - manche
+    # Quellen zeigen headless nur unvollstaendige Daten (Headless-
+    # Erkennung), im virtuellen Display mit headless=false laden sie normal.
     headless: true
     nav_timeout_seconds: 45
     locale: "de-DE"

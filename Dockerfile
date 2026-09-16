@@ -15,9 +15,17 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# System-Abhaengigkeiten fuer Chromium (Playwright)
+# System-Abhaengigkeiten fuer Chromium (Playwright) + xvfb (Nutzer-Fund
+# 16.09.26: mehrere Quellen - Kayak, lastminute.com, santiburi_official,
+# Googles "Buchungsoptionen"-Seite - laden im ECHTEN Browser sofort durch,
+# bleiben im headless-Modus aber haengen oder liefern 0 Treffer (klassisches
+# Muster fuer Headless-Erkennung). Xvfb (siehe docker-entrypoint.sh) laesst
+# Chromium NICHT-headless in einem virtuellen Display laufen - sieht fuer
+# die Zielseiten wie ein normaler Browser aus, ohne dass der Server einen
+# echten Bildschirm braucht. KEIN xvfb-run/xauth (siehe docker-entrypoint.sh
+# Kommentar, warum der erste Versuch damit fehlschlug).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        wget gnupg ca-certificates tzdata \
+        wget gnupg ca-certificates tzdata xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -27,6 +35,8 @@ RUN pip install -r requirements.txt \
 COPY app ./app
 COPY frontend ./frontend
 COPY config.example.yaml ./config.example.yaml
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 
 # Laufzeit-Verzeichnisse (werden i.d.R. als Volumes gemountet)
 RUN mkdir -p data logs artifacts
@@ -37,4 +47,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz').status==200 else 1)"
 
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
