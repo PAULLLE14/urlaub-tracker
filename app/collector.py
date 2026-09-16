@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import live_progress
 from .config import get_config, get_secrets
 from .database import get_session, init_db
 from .logging_setup import get_logger, setup_logging
@@ -124,6 +125,7 @@ def run_check(trigger: str = "manual") -> dict:
     session.add(run)
     session.commit()
     log.info("=== CheckRun #%s (%s) gestartet ===", run.id, trigger)
+    live_progress.start(run.id)
 
     health: dict[str, dict] = {}
 
@@ -258,6 +260,7 @@ def run_check(trigger: str = "manual") -> dict:
     alerts = maybe_alert(session, cfg, sec, snapshot_values, verdict.as_dict())
 
     session.close()
+    live_progress.finish()
     log.info("=== CheckRun #%s fertig: status=%s ===", run.id, run.status)
     return {
         "run_id": run.id,

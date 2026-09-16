@@ -97,6 +97,18 @@ trip:
   # Kommentar in config.py). Aendert nie automatisch einen Preis.
   employee_discounts:
     "lastminute.com": "7% Rabatt (Flug+Hotel) laut Mitarbeiter-Rabattportal - Code dort abrufen, gilt erst ab Checkout"
+    "5vorFlug": "7% Rabatt laut Mitarbeiter-Rabattportal"
+    "ab in den urlaub": "7% Rabatt laut Mitarbeiter-Rabattportal"
+    "Berge & Meer": "10% Rabatt laut Mitarbeiter-Rabattportal"
+    "Condor Holidays": "bis 11% Rabatt (Flug+Hotel) laut Mitarbeiter-Rabattportal"
+    "Eurowings Holidays": "bis 11% Rabatt laut Mitarbeiter-Rabattportal"
+    "Expedia": "bis 12% Rabatt laut Mitarbeiter-Rabattportal"
+    "Icelandair": "10% Rabatt laut Mitarbeiter-Rabattportal"
+    "Odalys": "ueber 10% Rabatt laut Mitarbeiter-Rabattportal"
+    "ReisenAKTUELL": "bis 11% Rabatt laut Mitarbeiter-Rabattportal"
+    "Urlaubsguru": "7% Rabatt laut Mitarbeiter-Rabattportal"
+    "weg.de": "7% Rabatt laut Mitarbeiter-Rabattportal"
+    "weloveholidays": "Rabatt laut Mitarbeiter-Rabattportal (genaue Hoehe dort pruefen)"
 
 # --- Harte Constraints fuer die Flugsuche -----------------------------------
 flight_constraints:

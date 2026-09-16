@@ -32,12 +32,19 @@ _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
 _EUR = r"(?:€|EUR)"
 _GUESTS = re.compile(r"(\d)\s*(?:Gäste|Gast|guests?|adults?)", re.I)
-# Bekannte OTA-Anzeigenamen (Google Hotels ist mehrsprachig, Namen stabil):
+# Bekannte OTA-Anzeigenamen (Google Hotels ist mehrsprachig, Namen stabil).
+# Nutzer-Fund 16.09.26 (Screenshot der "Alle Optionen"-Ansicht fuer genau
+# dieses Hotel): DERTOUR, Stayforlong.de, Halalbooking, EaseMyTrip.com,
+# ZenHotels.com und weloveholidays tauchten dort real auf, fehlten aber in
+# dieser Liste - der Regex-Scan in _parse() haette sie schlicht ignoriert,
+# obwohl sie teils guenstiger waren als die bisher erfassten OTAs.
 _OTA_NAMES = ("Booking.com", "Expedia.de", "Expedia", "Agoda", "Hotels.com",
-              "Trip.com", "CHECK24.de", "HolidayCheck.de", "TUI.com", "Opodo",
-              "Kiwi.com", "Priceline", "KAYAK.de", "eDreams", "ebookers",
+              "Trip.com", "CHECK24.de", "HolidayCheck.de", "TUI.com", "DERTOUR",
+              "Opodo", "Kiwi.com", "Priceline", "KAYAK.de", "eDreams", "ebookers",
               "Destinia", "Vio.com", "Wego", "Etrip.net", "Bluepillow.de",
-              "klook", "Mytrip", "easyJet holidays", "hutchgo.de")
+              "klook", "Mytrip", "easyJet holidays", "hutchgo.de",
+              "Stayforlong.de", "Halalbooking", "EaseMyTrip.com", "ZenHotels.com",
+              "weloveholidays", "lastminute.com", "Tripado", "Travomint")
 
 
 def _url(cfg: Config) -> str:

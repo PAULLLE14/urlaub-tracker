@@ -74,6 +74,7 @@ from ..config import Config
 from ..logging_setup import get_logger
 from ..offers import FlightOffer
 from .flight_cards import build_approx_segments, cheapest_card, implausible_price_reason
+from .. import live_progress
 from .flights import _ConsentFetcher, _flag_duplicate_estimates, cheapest_price_no_bag
 from .flights_browser_search import cheapest_round_trip_booking_options, cheapest_round_trip_cards
 from .flights_multicity_browser import _search_one as _mc_search_one
@@ -142,6 +143,13 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
     group_checked = split_checked = 0
     errors: list[str] = []
     no_bag_fetcher = _ConsentFetcher()
+    # Nutzer-Fund 16.09.26: "muss das 45min dauern bis was kommt?" - dieser
+    # Gruppen-Check ist der Hauptzeitfresser, die DB wird aber erst am Ende
+    # des GESAMTEN Laufs geschrieben. live_progress ist ein rein ephemerer
+    # Fortschritts-Kanal (kein Ersatz fuer die echte Persistenz), den das
+    # Dashboard waehrend eines laufenden Checks pollen kann, um live zu
+    # sehen, was gerade gefunden wird - siehe live_progress.py Docstring.
+    live_progress.set_phase("Fluege: Gruppen-Check", total=len(rt_keys) + len(mc_keys))
     # Preis-Leiter (Roadmap Runde 2/3, Punkt 2.1): erst NACH dem vollstaendigen
     # Gruppen-Check pro tatsaechlich BESTAETIGTEM 8-Pax-Preis sortieren, nicht
     # nach der 1-Pax-Schaetzung (externe Review, Runde 3) - sonst haengt die
@@ -174,6 +182,7 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
         if card8 is None:
             log.warning("%s: kein echter Preis lesbar - Hochrechnung bleibt "
                        "unbestaetigt, aber nicht ausgeschlossen", label)
+            live_progress.report(label=label, price=None, confirmed=False)
         else:
             log.info("%s: echter Preis %.0f EUR (%s, Hochrechnung war %.0f EUR)",
                      label, card8["price"], "+".join(card8["airlines"]), estimated.price_total)
@@ -189,6 +198,8 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
             else:
                 group_offer_by_key[key] = group_off
             offers.append(group_off)
+            live_progress.report(label=f"{label} ({'+'.join(card8['airlines'])})",
+                                 price=group_off.price_per_person, confirmed=not suspect)
             if card8["price"] > estimated.price_total:
                 reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
                          f"Preis verfuegbar (echter Gruppenpreis ab {card8['price']:.0f} EUR)")
@@ -306,14 +317,18 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{label}: {type(exc).__name__}: {exc}")
             log.warning("%s: Fehler %s: %s", label, type(exc).__name__, exc)
+            live_progress.report(label=label, price=None, confirmed=False)
             continue
         if off is None:
             log.warning("%s: kein echter Preis lesbar - Hochrechnung bleibt "
                        "unbestaetigt, aber nicht ausgeschlossen", label)
+            live_progress.report(label=label, price=None, confirmed=False)
             continue
         log.info("%s: echter Preis %.0f EUR (Hochrechnung war %.0f EUR)",
                 label, off.price_total, estimated.price_total)
         offers.append(off)
+        live_progress.report(label=f"{label} ({'+'.join(off.airlines)})",
+                             price=off.price_per_person, confirmed=not off.group_check_unconfirmed)
         if off.price_total > estimated.price_total:
             reason = (f"gruppen_check: fuer {t.persons} Personen nicht in diesem "
                      f"Preis verfuegbar (echter Gruppenpreis ab {off.price_total:.0f} EUR)")

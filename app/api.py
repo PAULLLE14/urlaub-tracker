@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query
 
-from . import queries, scheduler
+from . import live_progress, queries, scheduler
 from .config import get_config, get_secrets, reload
 from .database import get_session
 from .logging_setup import get_logger
@@ -27,6 +27,14 @@ def status():
         return queries.status_payload(s, get_config(), scheduler.info())
     finally:
         s.close()
+
+
+@router.get("/live_progress")
+def live_progress_status():
+    # Nutzer-Fund 16.09.26: rein ephemerer Fortschritts-Kanal fuer den
+    # AKTUELL laufenden Check (siehe live_progress.py Docstring) - keine
+    # DB-Abfrage, kein Ersatz fuer /api/summary nach Abschluss des Laufs.
+    return live_progress.snapshot()
 
 
 @router.get("/summary")

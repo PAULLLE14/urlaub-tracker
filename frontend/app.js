@@ -768,18 +768,47 @@ $("#btnCheck").addEventListener("click", async () => {
   try {
     await api("/api/check/run", { method: "POST" });
     showError("");
-    let tries = 0;
-    const poll = setInterval(async () => {
-      tries++;
-      await refreshAll();
-      if (tries > 40) clearInterval(poll);
-    }, 15000);
+    pollLiveProgress(); // sofort starten, nicht erst beim naechsten 6s-Tick
   } catch (e) {
     showError("Check konnte nicht gestartet werden: " + e.message);
   } finally {
     setTimeout(() => { b.disabled = false; b.textContent = "Jetzt prüfen"; }, 3000);
   }
 });
+
+// Nutzer-Fund 16.09.26: "muss das 45min dauern bis was kommt?" - die DB wird
+// (bewusst, wegen Trend/Verlauf-Konsistenz) erst am Ende eines kompletten
+// Laufs geschrieben, aber /api/live_progress liefert einen rein ephemeren
+// Fortschritts-Stand (siehe app/live_progress.py) direkt nach jeder einzeln
+// geprueften Route/Kombination. Pollt alle 6s, solange ein Check laeuft;
+// sobald er fertig ist (running:false), EINMAL die echten Tabellen neu
+// laden statt weiter zu pollen.
+let _wasRunning = false;
+async function pollLiveProgress() {
+  let p;
+  try {
+    p = await api("/api/live_progress");
+  } catch {
+    setTimeout(pollLiveProgress, 6000);
+    return;
+  }
+  const box = $("#liveProgress");
+  if (p.running) {
+    box.hidden = false;
+    const progressTxt = p.total ? `${p.checked}/${p.total} geprüft` : `${p.checked} geprüft`;
+    const bestTxt = p.best_price != null ? ` · bisher günstigster gefundener Preis: ${money2(p.best_price)} (${p.best_label})` : "";
+    $("#liveProgressText").textContent = `${p.phase || "Check läuft"} — ${progressTxt}${bestTxt}`;
+    _wasRunning = true;
+  } else {
+    box.hidden = true;
+    if (_wasRunning) {
+      _wasRunning = false;
+      await refreshAll(); // Lauf ist gerade fertig geworden - jetzt die echten Daten holen
+    }
+  }
+  setTimeout(pollLiveProgress, 6000);
+}
+pollLiveProgress();
 
 ["#fDirection", "#fOrigin", "#fAirline", "#fStops", "#fSort", "#fExcluded", "#fEstimates"].forEach((s) => {
   $(s).addEventListener("change", loadFlights);
