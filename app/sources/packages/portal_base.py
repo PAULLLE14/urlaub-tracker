@@ -129,8 +129,17 @@ async def run_portal_search(cfg: Config, spec: PortalSpec) -> list[PackageOffer]
                 shot = await save_screenshot(page, spec.name)
             log.info("%s: keine verwertbaren Ergebnisse (evtl. noch nicht buchbar)",
                      spec.name)
+            # Live-Fund 17.09.26 (DERTOUR, dieselbe Hotelseite): der eigene
+            # Datumskalender fuer Santiburi liess nur Anreisen bis 19.04.27
+            # zu - Mai 2027 lag AUSSERHALB des Buchungsfensters, keine
+            # Selektor-/Scraper-Frage. Vermutlich gilt das fuer mehrere
+            # Portale gleichzeitig (Paket-Preise oeffnen bei allen erst
+            # relativ kurz vor Abflug) - die Fehlermeldung soll das nicht
+            # faelschlich als "unser Fehler" darstellen.
             return [PackageOffer(ok=False, price_total=None,
-                                 error="keine Ergebnisse / Selektor pruefen",
+                                 error=("keine Ergebnisse - Selektor pruefen ODER (haeufiger, "
+                                       "z.B. live bei DERTOUR bestaetigt) Reisedatum liegt noch "
+                                       "ausserhalb des Buchungsfensters des Portals"),
                                  raw={"screenshot": shot}, **base)]
     except Exception as exc:  # noqa: BLE001
         log.warning("%s: Fehler %s: %s", spec.name, type(exc).__name__, exc)
