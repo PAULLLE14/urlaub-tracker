@@ -15,18 +15,42 @@ from .portal_base import PortalSpec
 TUI = PortalSpec(
     name="tui",
     operator="TUI",
+    # Bugfix 17.09.26 (Nutzer-Fund: "TUI wird immer noch nicht gecheckt"):
+    # die alte URL-Vorlage ("/pauschalreisen/suche/?hotelName=...") war
+    # schlicht falsch geraten und lieferte reproduzierbar einen 404 - live
+    # verifiziert. Die echte Hotel-Angebotsseite braucht TUIs eigene
+    # numerische Hotel-ID (live gefunden ueber Google-Sitesuche
+    # "site:tui.com Santiburi Koh Samui" -> Hotelseite -> "Termine & Preise"
+    # -> "Hotel + Flug" geklickt, daraus die echte Such-URL abgelesen):
+    #   https://www.tui.com/suchen/angebote/Santiburi-Koh-Samui/3866/offer/
+    #     ?startDate=...&endDate=...&travellers=N&searchScope=PACKAGE
+    # "travellers" ist die Personenzahl in EINEM Zimmer (kein Gruppenfeld) -
+    # 8 direkt liefert reproduzierbar "keine Angebote" (kein Zimmer fasst 8).
+    # max_persons_per_room aus der Config nutzen, wie bei den anderen
+    # Zimmergroessen-Suchen (CHECK24 etc.) - liefert einen ehrlichen
+    # Ein-Zimmer-Richtwert, KEINEN Preis fuer die volle Gruppe (Paket-Preise
+    # lassen sich nicht einfach pro Zimmer aufsummieren wie Hotelpreise, das
+    # wuerde den Flug mehrfach zaehlen - deshalb bewusst nicht wie CHECK24).
+    # Live-Fund 17.09.26: fuer Mai 2027 kommt selbst mit korrekter URL noch
+    # "keine Angebote" - TUI oeffnet Paketpreise offenbar erst deutlich
+    # naeher am Reisedatum (siehe Modul-Docstring in portal_base.py). Die
+    # URL ist trotzdem jetzt korrekt und greift automatisch, sobald TUI den
+    # Zeitraum freischaltet.
     search_url_template=(
-        "https://www.tui.com/pauschalreisen/suche/?"
-        "hotelName={destination}&von={checkin_de}&bis={checkout_de}"
-        "&reisende=erwachsene:{persons}&zimmer={rooms}"
+        "https://www.tui.com/suchen/angebote/Santiburi-Koh-Samui/3866/offer/"
+        "?startDate={checkin}&endDate={checkout}&duration=default"
+        "&travellers={max_room_persons}&searchScope=PACKAGE"
+        "&showTotalPrice=0&jumpToFirstOffer=1"
     ),
     card_selectors=[
         "[data-testid='offer-card']",
         "article[class*='offer']",
         "li[class*='result']",
         "div[class*='hotelcard']",
+        "div[class*='OfferCard']",
     ],
     price_selectors=["[data-testid='price']", "[class*='price']"],
+    extra_wait_ms=6000,
 )
 
 DERTOUR = PortalSpec(

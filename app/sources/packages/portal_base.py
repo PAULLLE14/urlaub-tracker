@@ -52,6 +52,10 @@ def _url(spec: PortalSpec, cfg: Config) -> str:
         checkout_de=t.return_dates[-1].strftime("%d.%m.%Y"),
         persons=t.persons,
         rooms=t.rooms,
+        # Fuer Portale, die nur EIN Zimmer statt der ganzen Gruppe abfragen
+        # koennen (siehe TUI-Kommentar in specs.py) - liefert einen
+        # Ein-Zimmer-Richtwert, keinen Gruppenpreis.
+        max_room_persons=t.max_persons_per_room,
         nights=(t.return_dates[-1] - t.outbound_dates[0]).days or t.nights,
         destination=spec.destination_query.replace(" ", "+"),
     )
