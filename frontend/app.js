@@ -172,9 +172,21 @@ function renderVersus(verdict, totals, persons) {
   // Jetzt: Flug- und Hotel-Preis direkt anklickbar, Hotel zusaetzlich mit
   // der Zimmergroessen-Aufschluesselung (je Zimmergroesse ein eigener Link).
   const f = verdict.flight, h = verdict.hotel, p = verdict.package;
-  const flightLink = (f && f.deep_link)
+  let flightLink = (f && f.deep_link)
     ? `<a href="${f.deep_link}" target="_blank" rel="noopener">Flug${fsrc} ${money(totals.flight_total)}</a>`
     : `Flug${fsrc} ${money(totals.flight_total)}`;
+  // Nutzer-Fund 17.09.26: "die 7000€ von lastminute werden nicht NEBEN den
+  // 7300€ von Qatar direkt angezeigt" - die Buchungsoptionen standen bisher
+  // nur in der Detail-Karte weiter unten, nicht in dieser Kopfzeile, wo der
+  // Nutzer zuerst hinschaut. Guenstigste Alternative (falls != Airline-Preis)
+  // jetzt direkt daneben.
+  if (f && f.booking_options && f.booking_options.length) {
+    const cheapest = f.booking_options[0];
+    if (Math.round(cheapest.price) < Math.round(totals.flight_total)) {
+      flightLink += ` <span class="small" style="color:var(--success)">` +
+        `(günstiger bei ${cheapest.provider}: ${money(cheapest.price)}${employeeDiscountNote(cheapest.provider)})</span>`;
+    }
+  }
   let hotelLink = (h && h.deep_link)
     ? `<a href="${h.deep_link}" target="_blank" rel="noopener">Hotel (${h.source}) ${money(totals.hotel_total)}</a>`
     : `Hotel ${money(totals.hotel_total)}`;
