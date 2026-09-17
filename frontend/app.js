@@ -641,6 +641,17 @@ async function loadHotels() {
       if (raw.refundable_total) {
         roomSplit += `<div class="seg muted">kostenlos stornierbar: ${money(raw.refundable_total)}</div>`;
       }
+      // Nutzer-Fund 17.09.26: "santiburi direkt guenstig, aber real nicht
+      // durch die Fees" - der gescrapte Preis schliesst Steuern/Gebuehren
+      // explizit aus (siehe santiburi.py TAX_FEE_NOTE). Geschaetzten
+      // Endpreis direkt daneben zeigen, damit der Vergleich fair bleibt.
+      if (raw.price_total_incl_fees_estimate) {
+        roomSplit += `<div class="seg" style="color:var(--amber)" title="${(raw.tax_fee_note || "").replace(/"/g, '&quot;')}">` +
+          `zzgl. Steuern/Gebühren: ca. ${money(raw.price_total_incl_fees_estimate)} gesamt</div>`;
+      }
+      if (raw.member_rate_note) {
+        roomSplit += `<div class="seg" style="color:var(--teal)">👤 ${raw.member_rate_note}</div>`;
+      }
     }
     let statusCell;
     if (r.ok) statusCell = `ok${r.error ? `<div class="seg" style="color:var(--amber)">${r.error}</div>` : ""}`;

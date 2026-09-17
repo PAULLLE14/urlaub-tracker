@@ -41,6 +41,24 @@ _PRICE_BLOCK = re.compile(
 _LABEL_AFTER = re.compile(r"(?<=\n)([A-Z][A-Z0-9 &|/'-]{4,70})(?=\n)")
 _REFUNDABLE_HINT = re.compile(r"Free cancellation", re.I)
 _NONREFUNDABLE_HINT = re.compile(r"Deposit Required|Non-?refundable|Guaranteed with Credit Card", re.I)
+_MEMBER_RATE_HINT = re.compile(r"MEMBER RATE", re.I)
+
+# Nutzer-Fund 17.09.26: JEDE Ratenkarte auf der Buchungsseite ist explizit
+# mit "Excluding taxes and fees" gekennzeichnet - der gescrapte Preis ist
+# also NIE der echte Endpreis. Santiburis eigene, oeffentlich verlinkte
+# Angebotsseiten (mehrfach identisch, z.B. santiburisamui.com/offers, live
+# recherchiert 17.09.26) nennen durchgehend dieselbe hotelspezifische
+# (nicht nur allgemein-thailaendische) Gebuehrenstruktur:
+#   "Subject to 10% Service charge, 7% VAT and 1% provincial taxes"
+# Diese drei Aufschlaege wirken sequenziell (Thailand-Hotelkonvention
+# "+++"), nicht addiert: 1.10 x 1.07 x 1.01 = 1.18877.
+TAX_FEE_MULTIPLIER = 1.10 * 1.07 * 1.01  # 10% Service + 7% VAT + 1% Provinzsteuer
+TAX_FEE_SOURCE_NOTE = (
+    "10% Service Charge + 7% VAT + 1% Provinzsteuer laut Santiburis eigenen "
+    "Angebotsseiten (santiburisamui.com/offers, live recherchiert 17.09.26) - "
+    "NICHT im gescrapten Preis enthalten (jede Ratenkarte zeigt explizit "
+    "'Excluding taxes and fees')."
+)
 
 
 def _url(chain: str, hotel_id: str, checkin: date, checkout: date, adults: int) -> str:
@@ -73,12 +91,22 @@ def _parse_rows(text: str, room_hint: str = "") -> list[dict]:
             if cand not in ("BOOK NOW", "SELECT A ROOM", "VIEW MORE RATES"):
                 label = cand
                 break
+        # MEMBER RATE-Zeile steht immer kurz VOR der Preiskarte (zwischen dem
+        # vorherigen Zimmernamen und diesem Preis) - Nutzerwunsch 17.09.26:
+        # "verwenden kannst du weiterhin den Member-Preis" (Nutzer ist
+        # Santiburi-Mitglied). Diese Rate steht oeffentlich auf der Seite,
+        # kein Login noetig, um sie zu SEHEN - ob sie ohne Mitgliedskonto
+        # auch BUCHBAR ist, ist nicht verifiziert, deshalb nur als Hinweis
+        # markiert, nicht automatisch bevorzugt.
+        window_start = max(0, m.start() - 300)
+        is_member = bool(_MEMBER_RATE_HINT.search(text[window_start:m.start()]))
         out.append({
             "room": label,
             "per_night": parse_money(m.group(1)),
             "total": total,
             "nights": int(m.group(3)),
             "refundable": _refundable_near(text, m.start()),
+            "member_rate": is_member,
         })
     return _filter_room_category(out, room_hint)
 
@@ -166,6 +194,7 @@ async def fetch(cfg: Config) -> HotelOffer:
                 "url": url, "offers": len(rows), "cheapest": cheapest_row["total"],
                 "cheapest_room": cheapest_row["room"] or None,
                 "cheapest_refundable": min(refund) if refund else None,
+                "cheapest_is_member_rate": cheapest_row["member_rate"],
             }
 
     price_per_size = {size: info["cheapest"] for size, info in
@@ -195,8 +224,25 @@ async def fetch(cfg: Config) -> HotelOffer:
         offer.rooms = sum(counts.values())
         offer.raw["room_split"] = {str(k): v for k, v in counts.items()}
         offer.raw["refundable_total"] = round(best_refund[1], 2) if best_refund else None
-        log.info("%s: gesamt %.0f %s (%d Naechte, guenstigste Aufteilung %s von %d geprueften)",
-                 SOURCE, offer.price_total, t.currency, nights, counts, len(allocations))
+        # Nutzer-Fund 17.09.26: "santiburi direkt guenstig, aber real nicht
+        # durch die Fees" - jede Ratenkarte zeigt "Excluding taxes and fees",
+        # der Preis oben ist also NIE der Endpreis. price_total bleibt der
+        # tatsaechlich gescrapte (Vergleichbarkeit mit der eigenen Historie),
+        # aber die realistische Schaetzung inkl. Gebuehren steht klar
+        # daneben - siehe TAX_FEE_MULTIPLIER/-SOURCE_NOTE oben.
+        offer.raw["price_total_incl_fees_estimate"] = round(total * TAX_FEE_MULTIPLIER, 2)
+        offer.raw["tax_fee_note"] = TAX_FEE_SOURCE_NOTE
+        member_sizes = [size for size in counts
+                       if per_size.get(str(size), {}).get("cheapest_is_member_rate")]
+        if member_sizes:
+            offer.raw["member_rate_note"] = (
+                f"Guenstigster Preis fuer Zimmergroesse(n) {', '.join(map(str, member_sizes))} "
+                "ist eine 'MEMBER RATE' (auf der Seite oeffentlich sichtbar, ob ohne "
+                "Login buchbar ist nicht verifiziert - beim Buchen mit Mitgliedskonto pruefen).")
+        log.info("%s: gesamt %.0f %s (%d Naechte, guenstigste Aufteilung %s von %d geprueften, "
+                "inkl. Gebuehren geschaetzt %.0f %s)",
+                 SOURCE, offer.price_total, t.currency, nights, counts, len(allocations),
+                 offer.raw["price_total_incl_fees_estimate"], t.currency)
     else:
         offer.error = "nicht fuer alle Zimmergroessen ein Preis gefunden"
         log.warning("%s: %s (%s)", SOURCE, offer.error, per_size)
