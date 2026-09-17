@@ -17,6 +17,7 @@ markiert).
 """
 from __future__ import annotations
 
+import base64
 import re
 from urllib.parse import quote_plus
 
@@ -47,12 +48,70 @@ _OTA_NAMES = ("Booking.com", "Expedia.de", "Expedia", "Agoda", "Hotels.com",
               "weloveholidays", "lastminute.com", "Tripado", "Travomint")
 
 
+def _varint(n: int) -> bytes:
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        if n:
+            out.append(b | 0x80)
+        else:
+            out.append(b)
+            return bytes(out)
+
+
+def _field_varint(num: int, val: int) -> bytes:
+    return _varint((num << 3) | 0) + _varint(val)
+
+
+def _field_bytes(num: int, payload: bytes) -> bytes:
+    return _varint((num << 3) | 2) + _varint(len(payload)) + payload
+
+
+def _date_msg(y: int, m: int, d: int) -> bytes:
+    return _field_varint(1, y) + _field_varint(2, m) + _field_varint(3, d)
+
+
+def _build_ts(checkin, checkout, adults: int, currency: str) -> str:
+    """Baut den ``ts=``-Parameter, den Google Hotels intern fuer Datum +
+    Belegung nutzt (ein Protobuf-Blob, base64url-codiert).
+
+    Live-Fund 17.09.26 (Nutzer-Screenshot: Deep-Link zeigte "9.-10. Nov, 2
+    Gaeste" statt Mai 2027/8 Pers.): die einfachen ``checkin=``/``checkout=``
+    Query-Parameter werden von Googles Client-JS komplett ignoriert - der
+    echte Suchzustand steckt in diesem ``ts=``-Blob. Struktur live per
+    Browser-Interaktion (Datum-Picker + Gaeste-Stepper auf der echten Seite)
+    reverse-engineered und byteweise verifiziert (siehe Analyse-Notizen im
+    zugehoerigen Commit). Mit konstruiertem ``ts=`` fuer 8 Erwachsene live
+    getestet: Google zeigt korrekt "Sa., 15. Mai" / "Fr., 28. Mai" / "8" an
+    (die Web-UI selbst deckelt den Gaeste-Stepper bei 6, das direkt gebaute
+    ``ts=`` unterliegt dieser UI-Beschraenkung nicht).
+    """
+    adults_content = bytearray()
+    for _ in range(adults):
+        adults_content += _field_bytes(1, _field_varint(1, 3))
+    adults_content += _field_varint(3, 1)
+    field2 = _field_bytes(2, bytes(adults_content))
+
+    date_range = (_field_bytes(1, _date_msg(checkin.year, checkin.month, checkin.day))
+                  + _field_bytes(2, _date_msg(checkout.year, checkout.month, checkout.day)))
+    level2 = _field_bytes(2, date_range) + _field_bytes(6, _field_varint(1, 0))
+    level1 = _field_bytes(1, _field_bytes(3, b"")) + _field_bytes(2, level2)
+    field3 = _field_bytes(3, level1)
+
+    curr_bytes = currency.encode("ascii")
+    curr = _field_bytes(1, _field_bytes(7, curr_bytes)) + _field_bytes(3, b"")
+    field5 = _field_bytes(5, curr)
+
+    top = _field_varint(1, 1) + field2 + field3 + field5 + _field_bytes(3, b"")
+    return base64.urlsafe_b64encode(bytes(top)).rstrip(b"=").decode("ascii")
+
+
 def _url(cfg: Config) -> str:
     t = cfg.trip
+    ts = _build_ts(t.hotel_checkin, t.hotel_checkout, min(t.persons, 8), t.currency)
     return (f"https://www.google.com/travel/search?q={quote_plus(t.hotel.name)}"
-            f"&checkin={t.hotel_checkin.isoformat()}"
-            f"&checkout={t.hotel_checkout.isoformat()}"
-            f"&curr={t.currency}&hl=de")
+            f"&curr={t.currency}&hl=de&ts={ts}")
 
 
 def _fetch_html(url: str, proxy: str | None) -> str:
