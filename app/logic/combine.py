@@ -11,7 +11,7 @@ Reine Einzelrichtungs-Angebote fliessen nicht in den Vergleich ein.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import date, timedelta
 
 from ..config import Config
 from ..logging_setup import get_logger
@@ -34,6 +34,9 @@ class Verdict:
     return_reference: FlightOffer | None = None
     hotel: HotelOffer | None = None
     hotel_total: float | None = None
+    hotel_checkin: str | None = None
+    hotel_checkout: str | None = None
+    hotel_exact: bool = False          # True: Hotel live fuer genau die Flugdaten abgefragt
     separate_total: float | None = None
     package: PackageOffer | None = None
     package_total: float | None = None
@@ -93,6 +96,8 @@ class Verdict:
                 "source": h.source, "price_total": h.price_total,
                 "per_night": h.per_night, "deep_link": h.deep_link,
                 "is_reference": h.is_reference,
+                "checkin": self.hotel_checkin, "checkout": self.hotel_checkout,
+                "date_exact": self.hotel_exact,
                 "per_room_size": (h.raw or {}).get("per_room_size"),
                 "room_split": (h.raw or {}).get("room_split"),
             },
@@ -129,19 +134,57 @@ def _hotel_nights_delta(flight: FlightOffer, cfg: Config) -> int | None:
     return (flight.return_date - actual_checkin).days - cfg.trip.nights
 
 
-def _true_total(flight: FlightOffer, hotel: HotelOffer | None, cfg: Config) -> float:
-    """Flugpreis + der zu SEINEM Rueckflugdatum passende Hotelanteil (nicht
-    blind der feste hotel_checkout-Preis) - das ist die Zahl, nach der die
-    guenstigste Gesamtkombination ausgewaehlt werden muss, nicht der nackte
-    Flugpreis alleine."""
-    if hotel is None or not hotel.price_total:
-        return flight.price_total
+def _hotel_tier(h: HotelOffer) -> int:
+    """Konkreter Scrape (0) schlaegt manuelle Referenz (1) schlaegt Floor-/1-Nacht-Richtwert (2)."""
+    raw = h.raw or {}
+    is_floor = raw.get("estimate") or "Floor" in raw.get("basis", "")
+    if getattr(h, "is_reference", False):
+        return 1
+    return 2 if is_floor else 0
+
+
+def _best_hotel(pool: list[HotelOffer]) -> HotelOffer | None:
+    if not pool:
+        return None
+    best_tier = min(_hotel_tier(h) for h in pool)
+    return min((h for h in pool if _hotel_tier(h) == best_tier), key=lambda h: h.price_total)
+
+
+def _hotel_dates(h: HotelOffer, cfg: Config) -> tuple[str, str]:
+    """Checkin/Checkout, fuer die dieses Angebot gilt (ungetaggte = Config-Standard)."""
+    raw = h.raw or {}
+    return (raw.get("checkin") or cfg.trip.hotel_checkin.isoformat(),
+            raw.get("checkout") or cfg.trip.hotel_checkout.isoformat())
+
+
+def _hotel_for_flight(flight: FlightOffer, hotels: list[HotelOffer],
+                      cfg: Config) -> tuple[HotelOffer | None, float | None, bool]:
+    """Passendes Hotel zu genau DIESEM Flug: Checkin = Abflug + 1 Tag,
+    Checkout = Rueckflugdatum. Gibt (Hotel, Preis, exakt) zurueck. Exakt heisst:
+    fuer genau diese Daten live abgefragt. Sonst (nur Fallback, z.B. Quelle
+    ausgefallen): Standardzeitraum-Angebot linear auf die Naechte umgerechnet."""
+    if not hotels:
+        return None, None, False
+    if flight.return_date is not None:
+        target = ((flight.search_date + timedelta(days=1)).isoformat(),
+                  flight.return_date.isoformat())
+        exact = _best_hotel([h for h in hotels if _hotel_dates(h, cfg) == target])
+        if exact:
+            return exact, exact.price_total, True
+    default = (cfg.trip.hotel_checkin.isoformat(), cfg.trip.hotel_checkout.isoformat())
+    base = _best_hotel([h for h in hotels if _hotel_dates(h, cfg) == default]) or _best_hotel(hotels)
+    price = base.price_total
     delta = _hotel_nights_delta(flight, cfg)
-    if not delta or not hotel.per_night:
-        # delta==0 (Normalfall) oder kein per_night bekannt (kann nicht
-        # naechte-genau nachrechnen) -> unveraenderter Hotelpreis annehmen.
-        return flight.price_total + hotel.price_total
-    return flight.price_total + hotel.price_total + delta * hotel.per_night
+    if delta and base.per_night:
+        price += delta * base.per_night
+    return base, price, False
+
+
+def _true_total(flight: FlightOffer, hotels: list[HotelOffer], cfg: Config) -> float:
+    """Flugpreis + der zu SEINEM Datumspaar passende Hotelpreis - die Zahl, nach
+    der die guenstigste Gesamtkombination gewaehlt wird, nicht der nackte Flugpreis."""
+    _, price, _ = _hotel_for_flight(flight, hotels, cfg)
+    return flight.price_total + (price or 0)
 
 
 def _drop_superseded_estimates(offers: list[FlightOffer]) -> list[FlightOffer]:
@@ -167,7 +210,7 @@ def _drop_superseded_estimates(offers: list[FlightOffer]) -> list[FlightOffer]:
     )]
 
 
-def _pick_flight(flights: list[FlightOffer], hotel: HotelOffer | None,
+def _pick_flight(flights: list[FlightOffer], hotel: list[HotelOffer],
                  cfg: Config) -> tuple[FlightOffer | None, list[str]]:
     notes: list[str] = []
     connected = [o for o in flights
@@ -222,7 +265,7 @@ def _pick_flight(flights: list[FlightOffer], hotel: HotelOffer | None,
             f"dadurch in Summe teurer als die gewaehlte Option ({best.price_total:.0f} EUR, "
             f"{best.search_date} -> {best.return_date}).")
     delta_chosen = _hotel_nights_delta(best, cfg)
-    if delta_chosen:
+    if delta_chosen and not _hotel_for_flight(best, hotel, cfg)[2]:
         notes.append(
             f"Kombination {best.search_date} -> {best.return_date} braucht "
             f"{delta_word(delta_chosen)} als die konfigurierte Standard-Kombination "
@@ -270,52 +313,49 @@ def build_verdict(flights: list[FlightOffer], hotels: list[HotelOffer],
                   packages: list[PackageOffer], cfg: Config) -> Verdict:
     v = Verdict(currency=cfg.trip.currency)
 
-    # Hotel-Auswahl in Qualitaets-Stufen: ein konkreter Scrape schlaegt eine
-    # manuelle Referenz schlaegt einen Floor-/1-Nacht-Richtwert. Innerhalb der
-    # besten verfuegbaren Stufe gewinnt der guenstigste Preis.
-    # MUSS vor der Flugwahl passieren: _pick_flight braucht den Preis/Nacht
-    # dieses Hotels, um Fluege mit abweichendem Rueckflugdatum (= andere
-    # Hotel-Naechte-Zahl) fair gegen den Rest zu vergleichen.
-    def _tier(h: HotelOffer) -> int:
-        raw = h.raw or {}
-        is_floor = raw.get("estimate") or "Floor" in raw.get("basis", "")
-        if getattr(h, "is_reference", False):
-            return 1
-        return 2 if is_floor else 0
-
+    # Hotel + Flug werden GEMEINSAM gewaehlt: je Flug-Datumspaar das zu genau
+    # diesem Paar passende Hotel (Checkin = Abflug+1, Checkout = Rueckflug),
+    # siehe _hotel_for_flight. Innerhalb eines Zeitraums gilt die Qualitaets-
+    # stufe konkreter Scrape > manuelle Referenz > Floor-Richtwert.
     hotel_ok = [h for h in hotels if h.ok and h.price_total and h.price_total > 0]
-    if hotel_ok:
-        best_tier = min(_tier(h) for h in hotel_ok)
-        pool = [h for h in hotel_ok if _tier(h) == best_tier]
-        v.hotel = min(pool, key=lambda h: h.price_total)
-        if best_tier == 1:
-            v.notes.append(f"Hotelpreis = manuelle Referenz '{v.hotel.source}' "
-                           f"({v.hotel.price_total:.0f}). Automatische Quellen liefern "
-                           f"nur Floor-Richtwerte (Belegung nicht abbildbar).")
-        elif best_tier == 2:
-            v.notes.append(f"Hotelpreis {v.hotel.price_total:.0f} ist ein Floor-Richtwert "
-                           f"(guenstigstes Zimmer x {cfg.trip.rooms} x {cfg.trip.nights} N, "
-                           f"ohne 3-Pers.-Villa-Aufpreis) - via reference_offers praezisieren.")
-    else:
-        v.notes.append("Kein Hotelpreis verfuegbar - Santiburi ggf. manuell pruefen.")
-
-    v.flight, notes = _pick_flight(flights, v.hotel, cfg)
+    v.flight, notes = _pick_flight(flights, hotel_ok, cfg)
     v.notes += notes
     if v.flight:
         v.flight_total = round(v.flight.price_total, 2)
         v.return_reference = _find_return_reference(flights, v.flight)
 
-    # Hotelanteil auf die tatsaechlich zum gewaehlten Rueckflug passende
-    # Naechte-Zahl bringen (siehe _hotel_nights_delta) - sonst wuerden
-    # flight_total + hotel_total nicht zusammenpassen, wenn der gewaehlte
-    # Flug an einem anderen Datum als hotel_checkout zurueckfliegt.
-    if v.hotel is not None:
-        delta = _hotel_nights_delta(v.flight, cfg) if v.flight else 0
-        adjusted = v.hotel.price_total
-        if delta and v.hotel.per_night:
-            adjusted += delta * v.hotel.per_night
-        v.hotel_total = round(adjusted, 2)
-        v.nights_used = cfg.trip.nights + (delta or 0)
+    if hotel_ok:
+        if v.flight:
+            v.hotel, price, v.hotel_exact = _hotel_for_flight(v.flight, hotel_ok, cfg)
+        else:
+            v.hotel = _best_hotel(hotel_ok)
+            price = v.hotel.price_total
+        tier = _hotel_tier(v.hotel)
+        if tier == 1:
+            v.notes.append(f"Hotelpreis = manuelle Referenz '{v.hotel.source}' "
+                           f"({v.hotel.price_total:.0f}). Automatische Quellen liefern "
+                           f"nur Floor-Richtwerte (Belegung nicht abbildbar).")
+        elif tier == 2:
+            v.notes.append(f"Hotelpreis {v.hotel.price_total:.0f} ist ein Floor-Richtwert "
+                           f"(guenstigstes Zimmer x {cfg.trip.rooms} x {cfg.trip.nights} N, "
+                           f"ohne 3-Pers.-Villa-Aufpreis) - via reference_offers praezisieren.")
+        ci, co = _hotel_dates(v.hotel, cfg)
+        v.hotel_checkin, v.hotel_checkout = ci, co
+        if v.hotel_exact:
+            v.notes.append(f"Hotel fuer genau {ci} -> {co} live abgefragt "
+                           f"({v.hotel.source}, {v.hotel.price_total:.0f}).")
+            nights = (date.fromisoformat(co) - date.fromisoformat(ci)).days
+        else:
+            delta = _hotel_nights_delta(v.flight, cfg) if v.flight else 0
+            nights = cfg.trip.nights + (delta or 0)
+            if v.flight:
+                v.notes.append(f"Hotel fuer {(v.flight.search_date + timedelta(days=1)).isoformat()} "
+                               f"-> {v.flight.return_date} liegt nicht live vor, aus dem "
+                               f"Standardzeitraum ({ci} -> {co}) umgerechnet (Schaetzung).")
+        v.hotel_total = round(price, 2)
+        v.nights_used = nights
+    else:
+        v.notes.append("Kein Hotelpreis verfuegbar - Santiburi ggf. manuell pruefen.")
 
     if v.flight_total is not None and v.hotel_total is not None:
         v.separate_total = round(v.flight_total + v.hotel_total, 2)

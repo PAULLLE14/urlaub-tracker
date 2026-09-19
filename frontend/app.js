@@ -106,7 +106,7 @@ async function loadStatus() {
 async function loadSummary() {
   const s = await api("/api/summary");
   CURRENCY = s.currency || CURRENCY;
-  renderVerdictCards(s.trends || {}, s.totals || {});
+  renderVerdictCards(s.trends || {}, s.totals || {}, s.persons);
   renderVersus(s.verdict || {}, s.totals || {}, s.persons);
   renderCheapestFlight(s.flight, (s.verdict || {}).return_reference);
 }
@@ -130,7 +130,11 @@ function versusSubline(verdict, persons) {
   return `${persons != null ? persons : "?"} Personen, ${roomTxt}, ${nightsTxt}`;
 }
 
-function renderVerdictCards(trends, totals) {
+function perPerson(total, persons) {
+  return total != null && persons ? `≈ ${money(total / persons)} p. P.` : "";
+}
+
+function renderVerdictCards(trends, totals, persons) {
   const box = $("#verdictCards");
   box.innerHTML = "";
   for (const cat of ["flight_total", "hotel_total", "package_total"]) {
@@ -142,6 +146,8 @@ function renderVerdictCards(trends, totals) {
     head.appendChild(document.createTextNode(CAT_LABELS[cat]));
     const big = el("div", "big");
     big.textContent = money(totals[cat]);
+    const pp = el("div", "small muted");
+    pp.textContent = perPerson(totals[cat], persons);
     const pill = el("span", `pill ${t.state}`);
     pill.textContent = t.label;
     const sub = el("div", "sub");
@@ -151,7 +157,7 @@ function renderVerdictCards(trends, totals) {
     } else {
       sub.textContent = `noch keine Vergleichsbasis`;
     }
-    c.append(head, big, pill, sub);
+    c.append(head, big, pp, pill, sub);
     box.appendChild(c);
   }
 }
@@ -159,8 +165,8 @@ function renderVerdictCards(trends, totals) {
 function renderVersus(verdict, totals, persons) {
   $("#versusSubline").textContent = versusSubline(verdict, persons);
   const sep = totals.separate_total, pkg = totals.package_total;
-  $("#sepAmount").textContent = money(sep);
-  $("#pkgAmount").textContent = money(pkg);
+  $("#sepAmount").innerHTML = `${money(sep)} <span class="small muted">${perPerson(sep, persons)}</span>`;
+  $("#pkgAmount").innerHTML = `${money(pkg)} <span class="small muted">${perPerson(pkg, persons)}</span>`;
   const f0 = verdict.flight;
   const isSplit0 = f0 && (f0.pax_mode || "").startsWith("split_");
   const fsrc = isSplit0 ? " (2 getrennte Tickets, Schätzung)"
@@ -190,6 +196,10 @@ function renderVersus(verdict, totals, persons) {
   let hotelLink = (h && h.deep_link)
     ? `<a href="${h.deep_link}" target="_blank" rel="noopener">Hotel (${h.source}) ${money(totals.hotel_total)}</a>`
     : `Hotel ${money(totals.hotel_total)}`;
+  if (h && h.checkin) {
+    hotelLink += ` <span class="small muted">${shortDate(h.checkin)}–${shortDate(h.checkout)}` +
+      `${h.date_exact ? "" : " (umgerechnet, Schätzung)"}</span>`;
+  }
   // Nutzer-Fund 14.09.26: hier wurden bisher ALLE gesuchten Zimmergroessen
   // aufgelistet (inkl. z.B. "1 Zi./1 Erw." aus der Preisermittlung), nicht
   // nur die tatsaechlich gebuchte Aufteilung - sah aus wie Fantasiezahlen,
@@ -611,8 +621,44 @@ async function loadItaMatrix() {
   }
 }
 
+function shortDate(iso) {
+  const [, m, d] = (iso || "").split("-");
+  return d ? `${d}.${m}.` : "?";
+}
+
+// Nutzer 19.09.26: Hotelpreis je Datumskombination (Ankunft = Abflug+1),
+// damit man sieht, was welches Flugdatum-Paar fuers Hotel bedeutet.
+function renderHotelMatrix(rows) {
+  const box = $("#hotelMatrix");
+  const tagged = rows.filter((r) => (r.raw || {}).checkin && !r.is_reference);
+  if (!tagged.length) { box.innerHTML = ""; return; }
+  const key = (r) => `${r.raw.checkin}|${r.raw.checkout}`;
+  const combos = [...new Set(tagged.map(key))].sort();
+  const sources = [...new Set(tagged.map((r) => r.source))];
+  let best = null;
+  for (const r of tagged) if (r.ok && r.price_total != null && (best === null || r.price_total < best)) best = r.price_total;
+  const head = combos.map((k) => {
+    const [a, b] = k.split("|");
+    return `<th>${shortDate(a)}–${shortDate(b)}<div class="seg muted">${Math.round((new Date(b) - new Date(a)) / 86400000)} Nächte</div></th>`;
+  }).join("");
+  const body = sources.map((src) => {
+    const cells = combos.map((k) => {
+      const r = tagged.find((x) => x.source === src && key(x) === k);
+      if (!r) return `<td class="muted">–</td>`;
+      if (!r.ok || r.price_total == null) return `<td class="muted" title="${(r.error || "").replace(/"/g, "&quot;")}">–</td>`;
+      const fees = (r.raw || {}).price_total_incl_fees_estimate;
+      const txt = `${money(r.price_total)}${fees ? `<div class="seg" style="color:var(--amber)">inkl. Gebühren ca. ${money(fees)}</div>` : ""}`;
+      const inner = r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">${txt}</a>` : txt;
+      return `<td class="mono${r.price_total === best ? " win" : ""}">${inner}</td>`;
+    }).join("");
+    return `<tr><td>${src}</td>${cells}</tr>`;
+  }).join("");
+  box.innerHTML = `<table class="stack-narrow"><thead><tr><th>Hotel je Zeitraum</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
 async function loadHotels() {
   const data = await api("/api/hotels");
+  renderHotelMatrix(data.rows || []);
   const tb = $("#hotelsTable tbody");
   tb.innerHTML = "";
   if (!data.rows.length) { tb.innerHTML = `<tr><td colspan="7" class="muted">noch keine Hoteldaten</td></tr>`; return; }
@@ -663,7 +709,7 @@ async function loadHotels() {
       <td class="mono nowrap" data-label="Gesamt">${money(r.price_total)}</td>
       <td class="mono nowrap" data-label="pro Nacht">${money(r.per_night)}<div class="seg muted">×${r.rooms}×${r.nights}N</div></td>
       <td class="nowrap">${r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">→</a>` : ""}</td>
-      <td title="${basisTip.replace(/"/g, '&quot;')}">${r.source}${refBadge}${est}${employeeDiscountNote(r.source)}${roomSplit}${villa}${otas}</td>
+      <td title="${basisTip.replace(/"/g, '&quot;')}">${r.source}${raw.checkin ? ` <span class="small muted">${shortDate(raw.checkin)}–${shortDate(raw.checkout)}</span>` : ""}${refBadge}${est}${employeeDiscountNote(r.source)}${roomSplit}${villa}${otas}</td>
       <td class="small" data-label="Zimmer/Gäste">${r.rooms} / ${r.guests}</td>
       <td class="small" data-label="Status">${statusCell}</td>
       <td class="small nowrap hide-narrow" data-label="erfasst">${dt(r.captured_at)}</td>`;

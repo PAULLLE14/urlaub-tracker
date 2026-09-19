@@ -1,3 +1,4 @@
+from datetime import date
 from app.config import get_config
 from app.logic.combine import build_verdict
 from app.offers import HotelOffer, PackageOffer
@@ -261,3 +262,44 @@ def test_note_mentions_search_date_not_just_return_date():
     v = build_verdict([flight_14_28, flight_15_28], [hotel], [], c)
     assert v.flight is flight_15_28  # guenstiger nackter Preis UND weniger Naechte -> gewinnt klar
     assert any("2027-05-15" in n and "2027-05-28" in n for n in v.notes)
+
+
+def _hotel_for(checkin, checkout, price, source="santiburi_official"):
+    return HotelOffer(source=source, ok=True, price_total=price, currency="EUR",
+                      nights=(date.fromisoformat(checkout) - date.fromisoformat(checkin)).days,
+                      per_night=round(price / 13, 2),
+                      raw={"checkin": checkin, "checkout": checkout})
+
+
+def test_exact_hotel_for_flight_dates_is_used_without_scaling():
+    # Nutzer 19.09.26: Flug 15.->28. braucht Hotel 16.->28. - der echt
+    # abgefragte Preis zaehlt, keine lineare Umrechnung der 13-Naechte-Suche.
+    c = get_config()
+    hotels = [_hotel_for("2027-05-15", "2027-05-28", 8000.0),
+              _hotel_for("2027-05-16", "2027-05-28", 7400.0)]
+    flight_15_28 = rt_offer("FRA", [
+        seg("FRA", "DOH", "2027-05-15T16:00", "2027-05-15T23:30"),
+        seg("DOH", "USM", "2027-05-16T02:00", "2027-05-16T11:30"),
+    ], price_total=7900.0, out_date="2027-05-15", ret_date="2027-05-28")
+    v = build_verdict([flight_15_28], hotels, [], c)
+    assert v.hotel_total == 7400.0
+    assert v.hotel_exact is True
+    assert (v.hotel_checkin, v.hotel_checkout) == ("2027-05-16", "2027-05-28")
+    assert v.separate_total == 7900.0 + 7400.0
+    assert v.nights_used == 12
+
+
+def test_cheapest_flight_hotel_combination_is_chosen_together():
+    # Der billigere Flug (14.->28.) hat das teurere Hotel -> Summe entscheidet.
+    c = get_config()
+    hotels = [_hotel_for("2027-05-15", "2027-05-28", 9000.0),
+              _hotel_for("2027-05-16", "2027-05-28", 7400.0)]
+    f14 = rt_offer("FRA", [seg("FRA", "DOH", "2027-05-14T16:00", "2027-05-14T23:30"),
+                           seg("DOH", "USM", "2027-05-15T02:00", "2027-05-15T11:30")],
+                   price_total=7800.0, out_date="2027-05-14", ret_date="2027-05-28")
+    f15 = rt_offer("FRA", [seg("FRA", "DOH", "2027-05-15T16:00", "2027-05-15T23:30"),
+                           seg("DOH", "USM", "2027-05-16T02:00", "2027-05-16T11:30")],
+                   price_total=8100.0, out_date="2027-05-15", ret_date="2027-05-28")
+    v = build_verdict([f14, f15], hotels, [], c)
+    assert v.flight is f15            # 8100 + 7400 < 7800 + 9000
+    assert v.separate_total == 15500.0

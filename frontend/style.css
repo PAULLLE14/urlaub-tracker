@@ -280,3 +280,4 @@ footer { text-align: center; color: var(--muted-soft); font-size: 11px; padding:
   section { padding: 14px; }
   .versus .amount, .card .big { font-size: 23px; }
 }
+td.win { background: var(--coral-soft); font-weight: 600; }

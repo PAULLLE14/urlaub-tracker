@@ -8,6 +8,7 @@ per Default aus.
 from __future__ import annotations
 
 import asyncio
+from datetime import date, timedelta
 
 from ...config import Config
 from ...logging_setup import get_logger
@@ -26,6 +27,49 @@ _PLAYWRIGHT_ADAPTERS = {
 }
 
 
+# Nutzer 19.09.26: ein Flug 14.->28. bringt nur dann etwas, wenn das Hotel
+# dazu passt (Ankunft +1 Tag). Deshalb wird fuer diese Quellen jede
+# Hotel-Datumskombination echt abgefragt statt eine Nacht hoch-/runterzurechnen.
+_MATRIX_SOURCES = ("santiburi_official", "check24")
+
+
+def hotel_date_combos(cfg: Config) -> list[tuple[date, date]]:
+    """(Checkin, Checkout) je Flug-Datumspaar: Checkin = Abflug + 1 Tag."""
+    return sorted({(d + timedelta(days=1), r) for d, r in cfg.trip.rt_date_pairs()})
+
+
+def _tag_dates(offer: HotelOffer, checkin: date, checkout: date) -> HotelOffer:
+    offer.raw = {**(offer.raw or {}), "checkin": checkin.isoformat(),
+                 "checkout": checkout.isoformat()}
+    return offer
+
+
+def _cfg_for_dates(cfg: Config, checkin: date, checkout: date) -> Config:
+    trip = cfg.trip.model_copy(update={"hotel_checkin": checkin, "hotel_checkout": checkout,
+                                       "nights": (checkout - checkin).days})
+    return cfg.model_copy(update={"trip": trip})
+
+
+async def _collect_matrix(cfg: Config, names: list[str]) -> list[HotelOffer]:
+    default = (cfg.trip.hotel_checkin, cfg.trip.hotel_checkout)
+    combos = [c for c in hotel_date_combos(cfg) if c != default]
+
+    async def one_source(name: str) -> list[HotelOffer]:
+        out: list[HotelOffer] = []
+        for ci, co in combos:  # nacheinander: nicht mehrere Browser je Quelle parallel
+            try:
+                off = await _PLAYWRIGHT_ADAPTERS[name].fetch(_cfg_for_dates(cfg, ci, co))
+            except Exception as exc:  # noqa: BLE001
+                off = HotelOffer(source=name, ok=False, price_total=None,
+                                 currency=cfg.trip.currency,
+                                 error=f"{type(exc).__name__}: {exc}")
+            out.append(_tag_dates(off, ci, co))
+        return out
+
+    results = await asyncio.gather(*(one_source(n) for n in names))
+    return [o for chunk in results for o in chunk]
+
+
 async def _collect_playwright(cfg: Config, names: list[str]) -> list[HotelOffer]:
     tasks = [_PLAYWRIGHT_ADAPTERS[n].fetch(cfg) for n in names]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -37,6 +81,11 @@ async def _collect_playwright(cfg: Config, names: list[str]) -> list[HotelOffer]
                                   error=f"{type(res).__name__}: {res}"))
         else:
             out.append(res)
+    default = (cfg.trip.hotel_checkin, cfg.trip.hotel_checkout)
+    out = [_tag_dates(o, *default) for o in out]
+    matrix_names = [n for n in names if n in _MATRIX_SOURCES]
+    if matrix_names:
+        out += await _collect_matrix(cfg, matrix_names)
     return out
 
 
