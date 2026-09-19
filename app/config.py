@@ -229,6 +229,9 @@ class FlightsSourceCfg(BaseModel):
     # werden zusaetzlich echt geprueft (sonst verdoppelt sich die Abfragezahl).
     group_check: bool = True
     group_check_top_n: int = 6
+    # 4+4-Split (2 getrennte Buchungen a 4 Pers.): Nutzer 19.09.26 abgeschaltet -
+    # der Preis ist nur eine Hochrechnung/Obergrenze und lieferte falsche Werte.
+    split_check: bool = False
     # A3 (externe Review 14.09.26): Multi-City bekam bisher NIE einen echten
     # Gruppen-Check, eine 1-Pax-Hochrechnung konnte unbestaetigt gegen
     # bestaetigte Round-Trip-Preise gewinnen. 14.09.26 Nutzervorgabe: kein

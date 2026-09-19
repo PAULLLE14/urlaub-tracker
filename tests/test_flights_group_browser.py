@@ -93,6 +93,7 @@ def test_split_estimate_marked_as_upper_bound_not_confirmed(monkeypatch):
     }))
     _no_network_ladder(monkeypatch)
     cfg = get_config()
+    monkeypatch.setattr(cfg.sources.flights, "split_check", True)
     # 1-Pax-Schaetzung weit unter dem 8er-Preis/Pers., damit der
     # Split-Check ueberhaupt ausgeloest wird (siehe _SPLIT_WORTHWHILE_RATIO).
     offers = [_est(price=6000.0)]
@@ -117,6 +118,7 @@ def test_split_falls_back_to_lower_bound_when_no_group_price(monkeypatch):
     }))
     _no_network_ladder(monkeypatch)
     cfg = get_config()
+    monkeypatch.setattr(cfg.sources.flights, "split_check", True)
     offers = [_est(price=6000.0)]
     health = asyncio.run(gb.verify(cfg, offers))
 
@@ -246,3 +248,19 @@ def test_multicity_gets_real_group_check(monkeypatch):
     assert len(confirmed) == 1
     assert confirmed[0].price_total == 9000.0
     assert health["group_checked"] >= 1
+
+
+def test_split_not_run_when_split_check_disabled(monkeypatch):
+    # Nutzer 19.09.26: 4+4-Suche abgeschaltet (falsche Preise) - Standard aus.
+    card8 = {**CARD_CONDOR, "price": 9200.0}
+    monkeypatch.setattr(gb, "cheapest_round_trip_cards", _fake_cards({
+        8: ([card8], "https://example.test/8"),
+        4: ([{**CARD_QATAR, "price": 3200.0}], "https://example.test/4"),
+    }))
+    _no_network_ladder(monkeypatch)
+    cfg = get_config()
+    monkeypatch.setattr(cfg.sources.flights, "split_check", False)
+    offers = [_est(price=6000.0)]
+    health = asyncio.run(gb.verify(cfg, offers))
+    assert not [o for o in offers if o.pax_mode.startswith("split_")]
+    assert health["split_checked"] == 0

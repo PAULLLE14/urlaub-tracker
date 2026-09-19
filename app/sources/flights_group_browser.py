@@ -207,11 +207,13 @@ async def verify(cfg: Config, offers: list[FlightOffer]) -> dict:
 
         # Split-Check (A2+B): nur 4+4, nur wenn ein knapper Bucket zu
         # vermuten ist (Preis(8)/8 spuerbar ueber der 1-Pax-Schaetzung).
-        do_split = (card8 is None or estimated.price_per_person <= 0
+        do_split = fs.split_check and (
+                   card8 is None or estimated.price_per_person <= 0
                    or (card8["price"] / t.persons) > estimated.price_per_person * _SPLIT_WORTHWHILE_RATIO)
         if not do_split:
-            log.info("%s: Split-Check uebersprungen (8er-Preis/Pers. nah an 1-Pax-Schaetzung "
-                     "- vermutlich kein knapper Bucket)", label)
+            log.info("%s: Split-Check uebersprungen (%s)", label,
+                     "abgeschaltet: flights.split_check=false" if not fs.split_check
+                     else "8er-Preis/Pers. nah an 1-Pax-Schaetzung - vermutlich kein knapper Bucket")
             continue
 
         split_checked += 1
