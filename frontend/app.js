@@ -732,7 +732,7 @@ function renderHotelCompare(rows, ci, co) {
       <td>${i + 1}</td>
       <td>${r.source}${employeeDiscountNote(raw.provider || r.source)}</td>
       <td class="mono nowrap">${money(price)}<div class="seg muted">${diff}</div>${(() => {
-        const pct = employeeDiscountPct(raw.provider || r.source);
+        const pct = r.is_reference ? null : employeeDiscountPct(raw.provider || r.source);  // Referenzen enthalten den Rabatt schon
         return pct ? `<div class="seg" style="color:var(--teal)" title="Rabatt laut Mitarbeiterportal, genauer Wert erst beim Checkout">mit bis zu ${pct}% ≈ ${money(price * (1 - pct / 100))}</div>` : "";
       })()}</td>
       <td class="mono nowrap">${persons ? money(price / persons) : "–"}</td>
