@@ -303,3 +303,21 @@ def test_cheapest_flight_hotel_combination_is_chosen_together():
     v = build_verdict([f14, f15], hotels, [], c)
     assert v.flight is f15            # 8100 + 7400 < 7800 + 9000
     assert v.separate_total == 15500.0
+
+
+def test_booked_flight_is_used_with_its_matching_hotel():
+    # Nutzer 26.09.26: Flug 14.->28. gekauft (7183,36) - Hotel 15.->28. exakt.
+    from app.collector import _booked_offer
+    from app.config import BookedFlight
+
+    c = get_config().model_copy(deep=True)
+    c.trip.booked_flight = BookedFlight(price_total=7183.36, outbound_date=date(2027, 5, 14),
+                                        return_date=date(2027, 5, 28))
+    booked = _booked_offer(c)
+    hotels = [_hotel_for("2027-05-15", "2027-05-28", 7348.0),
+              _hotel_for("2027-05-16", "2027-05-28", 6780.0)]
+    v = build_verdict([booked], hotels, [], c)
+    assert v.flight_total == 7183.36
+    assert v.flight.pax_mode == "booked"
+    assert v.hotel_total == 7348.0 and v.hotel_exact
+    assert v.separate_total == round(7183.36 + 7348.0, 2)

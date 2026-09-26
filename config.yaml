@@ -83,6 +83,14 @@ trip:
   # Selbst recherchierte Preise (CHECK24 & Co.) - fliessen als vollwertige
   # Angebote in Vergleich/Trend/Alarm ein. Automatische Quellen sind bei
   # "3 Villen / 8 Pers. / 14 Naechte / Mai 2027" nicht zuverlaessig genau.
+  # Flug ist gekauft (Nutzer 26.09.26): feste Zahl statt Flugsuche, Fokus Hotel.
+  # Hotelzeitraum folgt daraus: Ankunft 15.05., Rueckflug 28.05.
+  booked_flight:
+    price_total: 7183.36
+    outbound_date: "2027-05-14"
+    return_date: "2027-05-28"
+    note: "Gebucht - fester Preis fuer alle 8 Personen"
+
   reference_offers:
     - label: "CHECK24 Direktfund"
       category: hotel          # hotel | package

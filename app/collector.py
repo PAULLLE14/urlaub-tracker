@@ -105,6 +105,19 @@ def _reference_offers(cfg) -> tuple[list[HotelOffer], list[PackageOffer]]:
     return hotels, packages
 
 
+def _booked_offer(cfg) -> FlightOffer:
+    b = cfg.trip.booked_flight
+    return FlightOffer(
+        source="gebucht", direction="round_trip", trip_type="round_trip",
+        origin=b.origin or "?", destination=cfg.trip.destination_airport,
+        search_date=b.outbound_date, return_date=b.return_date,
+        price_total=round(b.price_total, 2),
+        price_per_person=round(b.price_total / cfg.trip.persons, 2),
+        currency=cfg.trip.currency, airlines=list(b.airlines),
+        pax_mode="booked", price_confidence=b.note or "Flug gebucht (fester Preis)",
+    )
+
+
 def _overall_status(health: dict) -> str:
     vals = list(health.values())
     if all(h.get("ok") for h in vals):
@@ -130,49 +143,56 @@ def run_check(trigger: str = "manual") -> dict:
     health: dict[str, dict] = {}
 
     # 1) Fluege -----------------------------------------------------------
-    try:
-        flights, fh = collect_flights(cfg, proxy=sec.flights_proxy)
-    except Exception as exc:  # noqa: BLE001
-        flights, fh = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
-    health["flights"] = fh
+    booked = cfg.trip.booked_flight
+    if booked:
+        flights = [_booked_offer(cfg)]
+        health["flights"] = {"ok": True, "count": 1,
+                             "note": "Flug bereits gebucht - Flugsuche uebersprungen"}
+    else:
+        try:
+            flights, fh = collect_flights(cfg, proxy=sec.flights_proxy)
+        except Exception as exc:  # noqa: BLE001
+            flights, fh = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+        health["flights"] = fh
 
-    # 1a) Multi-City ueber echten Browser statt primp - primp bekommt fuer
-    # diese Routen reproduzierbar keine Daten (siehe Modul-Docstring).
-    try:
-        mc_offers, mch = flights_multicity_browser.collect(cfg)
-        flights += mc_offers
-        health["flights"]["multicity_browser"] = mch
-    except Exception as exc:  # noqa: BLE001
-        health["flights"]["multicity_browser"] = {
-            "ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+        # 1a) Multi-City ueber echten Browser statt primp - primp bekommt fuer
+        # diese Routen reproduzierbar keine Daten (siehe Modul-Docstring).
+        try:
+            mc_offers, mch = flights_multicity_browser.collect(cfg)
+            flights += mc_offers
+            health["flights"]["multicity_browser"] = mch
+        except Exception as exc:  # noqa: BLE001
+            health["flights"]["multicity_browser"] = {
+                "ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
 
-    # 1a2) Kayak - zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26:
-    # "so viele Angebotsseiten wie moeglich"). Gleicher pax_mode="estimated"-
-    # Kandidatenpool wie die Google-Flights-Zeilen, konkurriert normal ueber
-    # Dedup/Gruppen-Check-Kandidatenwahl mit.
-    try:
-        kayak_offers, kh = flights_kayak.collect(cfg)
-        flights += kayak_offers
-        health["flights"]["kayak"] = kh
-    except Exception as exc:  # noqa: BLE001
-        health["flights"]["kayak"] = {
-            "ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+        # 1a2) Kayak - zweite, unabhaengige Flugquelle (Nutzervorgabe 14.09.26:
+        # "so viele Angebotsseiten wie moeglich"). Gleicher pax_mode="estimated"-
+        # Kandidatenpool wie die Google-Flights-Zeilen, konkurriert normal ueber
+        # Dedup/Gruppen-Check-Kandidatenwahl mit.
+        try:
+            kayak_offers, kh = flights_kayak.collect(cfg)
+            flights += kayak_offers
+            health["flights"]["kayak"] = kh
+        except Exception as exc:  # noqa: BLE001
+            health["flights"]["kayak"] = {
+                "ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
 
-    # 1b) Gruppen-/Split-Preis-Verifikation ueber echten Browser statt primp
-    # (primp liefert fuer Mehrpersonen-Suchen oft nur einen Bruchteil der
-    # echten Ergebnisse - siehe Modul-Docstring, kritischer Fund 13.09.26).
-    # Mutiert `flights` in-place (group_check_unconfirmed-Flags + neue
-    # group/split_*-Angebote).
-    try:
-        gh = flights_group_browser.collect(cfg, flights)
-        health["flights"]["group_browser"] = gh
-    except Exception as exc:  # noqa: BLE001
-        health["flights"]["group_browser"] = {
-            "ok": False, "group_checked": 0, "error": f"{type(exc).__name__}: {exc}"}
+        # 1b) Gruppen-/Split-Preis-Verifikation ueber echten Browser statt primp
+        # (primp liefert fuer Mehrpersonen-Suchen oft nur einen Bruchteil der
+        # echten Ergebnisse - siehe Modul-Docstring, kritischer Fund 13.09.26).
+        # Mutiert `flights` in-place (group_check_unconfirmed-Flags + neue
+        # group/split_*-Angebote).
+        try:
+            gh = flights_group_browser.collect(cfg, flights)
+            health["flights"]["group_browser"] = gh
+        except Exception as exc:  # noqa: BLE001
+            health["flights"]["group_browser"] = {
+                "ok": False, "group_checked": 0, "error": f"{type(exc).__name__}: {exc}"}
 
-    constraint_summary = apply_constraints(flights, cfg)
-    flights = dedup_flights(flights)
-    health["flights"]["constraints"] = constraint_summary
+        constraint_summary = apply_constraints(flights, cfg)
+        flights = dedup_flights(flights)
+        health["flights"]["constraints"] = constraint_summary
+
 
     # 2) Hotels ---------------------------------------------------------
     try:

@@ -277,6 +277,13 @@ function flightCard(f) {
       werden hier bewusst nicht angezeigt.</div>`;
     return c;
   }
+  if (f.pax_mode === "booked") {
+    c.innerHTML = `<div class="label">Flug gebucht ✓</div>
+      <div class="big">${money(f.price_total)}</div>
+      <div class="sub">${money2(f.price_per_person)} p.P. · Hinflug ${f.search_date} · zurück ${f.return_date}${(f.airlines || []).length ? " · " + f.airlines.join(", ") : ""}</div>
+      <div class="seg muted">${f.price_confidence || ""}</div>`;
+    return c;
+  }
   const isMC = f.trip_type === "multi_city";
   const isSplit = (f.pax_mode || "").startsWith("split_");
   const h = el("div", "label");

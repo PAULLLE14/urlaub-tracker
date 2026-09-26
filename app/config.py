@@ -22,6 +22,19 @@ CONFIG_PATH = Path(os.environ.get("TRACKER_CONFIG", BASE_DIR / "config.yaml"))
 # --------------------------------------------------------------------------- #
 # YAML-Modelle
 # --------------------------------------------------------------------------- #
+class BookedFlight(BaseModel):
+    """Bereits gebuchter Flug (Ticket gekauft): ersetzt die komplette Flugsuche,
+    der Tracker konzentriert sich dann auf Hotel/Pauschal. Der Hotelzeitraum
+    folgt aus den Flugdaten (Ankunft = Abflug + 1 Tag, Checkout = Rueckflug)."""
+
+    price_total: float                    # Gesamt fuer alle Pax
+    outbound_date: date
+    return_date: date
+    origin: str = ""                      # optional, nur Anzeige
+    airlines: list[str] = []
+    note: str = ""
+
+
 class ReferenceOffer(BaseModel):
     """Ein selbst gefundener Preis (z.B. CHECK24), den der Tracker als
     vollwertiges Angebot mitfuehrt - er gewinnt den Vergleich, solange keine
@@ -90,6 +103,7 @@ class TripCfg(BaseModel):
     # Selbst recherchierte Preise (CHECK24 & Co.), die als vollwertige Angebote
     # in Vergleich/Trend/Alarm einfliessen. Automatische Quellen sind bei einem
     # so speziellen Setup (3 Villen, 8 Pers., 14 Naechte, Mai 2027) unzuverlaessig.
+    booked_flight: BookedFlight | None = None
     reference_offers: list[ReferenceOffer] = []
     # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal (Corporate Benefits o.ae.)
     # zeigt zusaetzliche Rabatte auf einzelne Anbieter (z.B. lastminute.com
