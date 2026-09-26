@@ -56,7 +56,9 @@ def test_tax_fee_multiplier_matches_santiburis_published_terms():
     # Live recherchiert 17.09.26 (santiburisamui.com/offers, mehrfach
     # identisch): "Subject to 10% Service charge, 7% VAT and 1% provincial
     # taxes" - sequenziell (Thailand-"+++"-Konvention), nicht addiert.
-    assert round(TAX_FEE_MULTIPLIER, 5) == round(1.10 * 1.07 * 1.01, 5)
+    assert round(TAX_FEE_MULTIPLIER, 5) == round(1.10 * 1.07 + 0.01, 5)
+    # Echter Warenkorb 26.09.26: 70.200 THB -> 83.327,40 THB inkl. Steuern/Gebuehren
+    assert round(70200 * TAX_FEE_MULTIPLIER, 2) == 83327.40
     # Plausibilitaetscheck: ein 1.828-EUR-Preis wird dadurch NICHT trivial
     # (< 5%) hoeher, sondern spuerbar (~18-19%).
     incl = 1828.0 * TAX_FEE_MULTIPLIER

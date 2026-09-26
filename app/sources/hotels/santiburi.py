@@ -50,9 +50,13 @@ _MEMBER_RATE_HINT = re.compile(r"MEMBER RATE", re.I)
 # recherchiert 17.09.26) nennen durchgehend dieselbe hotelspezifische
 # (nicht nur allgemein-thailaendische) Gebuehrenstruktur:
 #   "Subject to 10% Service charge, 7% VAT and 1% provincial taxes"
-# Diese drei Aufschlaege wirken sequenziell (Thailand-Hotelkonvention
+# Diese drei Aufschlaege wirken so (am Warenkorb verifiziert, siehe unten):
 # "+++"), nicht addiert: 1.10 x 1.07 x 1.01 = 1.18877.
-TAX_FEE_MULTIPLIER = 1.10 * 1.07 * 1.01  # 10% Service + 7% VAT + 1% Provinzsteuer
+# Am echten Warenkorb verifiziert (Nutzer 26.09.26, Duplex Suite Discovery, 13
+# Naechte, 2 Erw.): 70.200 THB + 13.127,40 THB Steuern/Gebuehren = 83.327,40.
+# Rechnung: Service 10% auf den Grundpreis, MwSt 7% auf (Grundpreis+Service),
+# Provinzsteuer 1% auf den GRUNDPREIS (nicht auf die Summe) -> 1,10*1,07+0,01.
+TAX_FEE_MULTIPLIER = 1.10 * 1.07 + 0.01
 TAX_FEE_SOURCE_NOTE = (
     "10% Service Charge + 7% VAT + 1% Provinzsteuer laut Santiburis eigenen "
     "Angebotsseiten (santiburisamui.com/offers, live recherchiert 17.09.26) - "
