@@ -93,3 +93,21 @@ def test_url_uses_ts_param_not_ignored_checkin_checkout_params():
     # Google clientseitig ignoriert - die duerfen hier nicht mehr auftauchen.
     assert "checkin=" not in url
     assert "checkout=" not in url
+
+
+def test_extract_providers_reads_price_total_and_direct_link():
+    from app.sources.hotels.google_hotels import extract_providers
+
+    html = (
+        '[["Trip.com",998605,"/travel/lodging/clk?pc\u003dABC\u0026pcurl\u003d'
+        'https://de.trip.com/hotels/redirect?hotelid%3D1%26x%3D2\u0026ap\u003d1",[],0],'
+        'null,null,["170 €"],["2.212 €"],null],'
+        '[["Booking.com",1234,"/travel/lodging/clk?pc\u003dDEF\u0026pcurl\u003d'
+        'https://www.booking.com/searchresults.de.html\u0026ap\u003d1",[],0],'
+        'null,["187 €"],["2.435 €"],null]'
+    )
+    res = extract_providers(html)
+    assert [p.name for p in res] == ["Trip.com", "Booking.com"]     # nach Gesamtpreis sortiert
+    assert res[0].total == 2212.0 and res[0].per_night == 170.0
+    assert res[0].url.startswith("https://de.trip.com/hotels/redirect")
+    assert res[1].total == 2435.0

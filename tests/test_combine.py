@@ -321,3 +321,16 @@ def test_booked_flight_is_used_with_its_matching_hotel():
     assert v.flight.pax_mode == "booked"
     assert v.hotel_total == 7348.0 and v.hotel_exact
     assert v.separate_total == round(7183.36 + 7348.0, 2)
+
+
+def test_hotel_choice_uses_price_including_fees_estimate():
+    # Santiburi direkt zeigt 7348 OHNE Steuern/Gebuehren (Schaetzung inkl. 8735);
+    # ein Google-Anbieter mit 8500 inkl. ist real guenstiger und muss gewinnen.
+    c = get_config()
+    direct = _hotel_for("2027-05-15", "2027-05-28", 7348.0)
+    direct.raw["price_total_incl_fees_estimate"] = 8735.0
+    ota = _hotel_for("2027-05-15", "2027-05-28", 8500.0, source="Trip.com (Google)")
+    booked = _rt(7183.36)
+    v = build_verdict([booked], [direct, ota], [], c)
+    assert v.hotel is ota
+    assert v.hotel_total == 8500.0

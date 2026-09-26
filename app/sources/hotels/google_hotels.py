@@ -1,29 +1,29 @@
-"""Hotelpreis via Google Hotels (Server-HTML) - die "schlaue" Loesung.
+"""Hotelpreise ALLER Anbieter via Google Hotels (Server-HTML) - Vergleichsquelle.
 
-Statt Booking/Expedia einzeln zu scrapen (Anti-Bot, brechen staendig), holen
-wir EINE Google-Hotels-Seite fuer genau dieses Hotel. Google aggregiert dort
-~20 OTAs (Booking, Expedia, Agoda, Hotels.com, Trip.com, CHECK24, HolidayCheck,
-TUI ...) inklusive Zimmertypen mit Belegung - in einem Request, gleiche
-robuste Masche wie bei den Fluegen (primp/httpx + Consent-Cookie ``SOCS=CAI``,
-kein Browser noetig).
+Google Hotels zeigt fuer das Hotel ~10-20 Anbieter (Booking, Expedia, Agoda,
+Trip.com, CHECK24, TUI, DERTOUR, Opodo, Hotels.com ...) mit dem Preis pro Nacht
+UND dem Gesamtpreis fuer den Aufenthalt, jeweils INKL. Steuern und Gebuehren,
+dazu den Direktlink des Anbieters mit Datum/Personen. Alles steckt als JSON im
+Server-HTML (kein Browser noetig, primp/httpx + Consent-Cookie ``SOCS=CAI``).
 
-Fuer Mai 2027 liefert Google oft nur einen 1-Nacht-Richtwert (Datum ausserhalb
-des Buchungsfensters). Das wird als ``estimate`` markiert; der Wert konvergiert,
-sobald die Hotels den Zeitraum oeffnen.
-
-price_total = Villa-Preis/Nacht (>=3 Gaeste) x rooms x nights; sonst
-guenstigster OTA-Nachtpreis x rooms x nights (dann als Basiszimmer-Schaetzung
-markiert).
+Live-Fund 26.09.26: mit dem ``ts=``-Blob fuer 15.-28.05.2027 und 2 Erwachsene
+liefert Google echte Preise (vorher mit 8 Gaesten: keine - kein Zimmer fasst
+8). Deshalb wie bei CHECK24/Santiburi je Zimmergroesse einzeln (1 Zimmer, N
+Erwachsene) abgefragt und je Anbieter zur guenstigsten Aufteilung summiert.
 """
 from __future__ import annotations
 
 import base64
+import json
 import re
-from urllib.parse import quote_plus
+from dataclasses import dataclass
+from datetime import date
+from urllib.parse import parse_qs, quote_plus, urlparse
 
 from ...config import Config
 from ...logging_setup import get_logger
 from ...offers import HotelOffer
+from ..room_split import candidate_allocations, cheapest_allocation, explicit_allocations
 from ..scraper_base import parse_money
 
 log = get_logger("source.google_hotels")
@@ -31,21 +31,6 @@ SOURCE = "google_hotels"
 
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-_EUR = r"(?:€|EUR)"
-_GUESTS = re.compile(r"(\d)\s*(?:Gäste|Gast|guests?|adults?)", re.I)
-# Bekannte OTA-Anzeigenamen (Google Hotels ist mehrsprachig, Namen stabil).
-# Nutzer-Fund 16.09.26 (Screenshot der "Alle Optionen"-Ansicht fuer genau
-# dieses Hotel): DERTOUR, Stayforlong.de, Halalbooking, EaseMyTrip.com,
-# ZenHotels.com und weloveholidays tauchten dort real auf, fehlten aber in
-# dieser Liste - der Regex-Scan in _parse() haette sie schlicht ignoriert,
-# obwohl sie teils guenstiger waren als die bisher erfassten OTAs.
-_OTA_NAMES = ("Booking.com", "Expedia.de", "Expedia", "Agoda", "Hotels.com",
-              "Trip.com", "CHECK24.de", "HolidayCheck.de", "TUI.com", "DERTOUR",
-              "Opodo", "Kiwi.com", "Priceline", "KAYAK.de", "eDreams", "ebookers",
-              "Destinia", "Vio.com", "Wego", "Etrip.net", "Bluepillow.de",
-              "klook", "Mytrip", "easyJet holidays", "hutchgo.de",
-              "Stayforlong.de", "Halalbooking", "EaseMyTrip.com", "ZenHotels.com",
-              "weloveholidays", "lastminute.com", "Tripado", "Travomint")
 
 
 def _varint(n: int) -> bytes:
@@ -107,11 +92,16 @@ def _build_ts(checkin, checkout, adults: int, currency: str) -> str:
     return base64.urlsafe_b64encode(bytes(top)).rstrip(b"=").decode("ascii")
 
 
-def _url(cfg: Config) -> str:
+def _url_for(cfg: Config, checkin: date, checkout: date, adults: int) -> str:
     t = cfg.trip
-    ts = _build_ts(t.hotel_checkin, t.hotel_checkout, min(t.persons, 8), t.currency)
+    ts = _build_ts(checkin, checkout, adults, t.currency)
     return (f"https://www.google.com/travel/search?q={quote_plus(t.hotel.name)}"
             f"&curr={t.currency}&hl=de&ts={ts}")
+
+
+def _url(cfg: Config) -> str:
+    t = cfg.trip
+    return _url_for(cfg, t.hotel_checkin, t.hotel_checkout, min(t.persons, 8))
 
 
 def _fetch_html(url: str, proxy: str | None) -> str:
@@ -136,108 +126,93 @@ def _fetch_html(url: str, proxy: str | None) -> str:
             return c.get(url).text
 
 
-def _visible_text(html: str) -> str:
-    try:
-        from selectolax.lexbor import LexborHTMLParser
-
-        return LexborHTMLParser(html).text()
-    except Exception:
-        return re.sub(r"<[^>]+>", " ", html)
+_PROVIDER_ENTRY = re.compile(r'\["([^"\\]{2,40})",(\d+),"(/travel/lodging/clk[^"]*)"')
+_PRICE_PAIR = re.compile(r'\["([\d.,]+)\s?[€]"\],\["([\d.,]+)\s?[€]"\]')
 
 
-def _parse(text: str) -> dict:
-    otas: dict[str, float] = {}
-    for name in _OTA_NAMES:
-        m = re.search(r"%s[^€]{0,60}?%s\s?(\d[\d.,]{1,6})"
-                      % (re.escape(name), _EUR), text)
-        if not m:
+@dataclass
+class ProviderPrice:
+    name: str
+    per_night: float       # inkl. Steuern und Gebuehren
+    total: float           # Gesamtpreis fuer den Aufenthalt, inkl. Steuern/Gebuehren
+    url: str               # Direktlink des Anbieters (Datum/Personen enthalten)
+
+
+def extract_providers(html: str) -> list[ProviderPrice]:
+    """Liest die Anbieterzeilen aus dem in Googles Server-HTML eingebetteten
+    JSON: ``["Name",id,"/travel/lodging/clk?...pcurl=<Direktlink>..."]`` gefolgt
+    von ``["170 €"],["2.212 €"]`` (Preis/Nacht, Gesamtpreis, beide inkl. Steuern).
+    Je Anbieter zaehlt die guenstigste Zeile."""
+    entries = list(_PROVIDER_ENTRY.finditer(html))
+    best: dict[str, ProviderPrice] = {}
+    for k, m in enumerate(entries):
+        end = entries[k + 1].start() if k + 1 < len(entries) else m.end() + 3500
+        seg = html[m.end():min(end, m.end() + 3500)]
+        pm = _PRICE_PAIR.search(seg)
+        if not pm:
             continue
-        val = parse_money(m.group(1))
-        if val and 20 <= val <= 20000:
-            otas.setdefault(name, val)
-
-    rooms: list[dict] = []
-    for m in re.finditer(
-        r"([A-Z][A-Za-z0-9 \-]{2,44}?(?:Villa|Suite|Zimmer|Room|Bungalow|Cottage|Residence|Pool))"
-        r"[^€]{0,90}?%s\s?(\d[\d.,]{1,6})" % _EUR, text
-    ):
-        price = parse_money(m.group(2))
-        if not price:
+        per_night, total = parse_money(pm.group(1)), parse_money(pm.group(2))
+        if not per_night or not total:
             continue
-        gm = _GUESTS.search(m.group(0))
-        name = re.sub(r"^(?:Zur\s+Website|Website|Zur\s+Webseite|Visit site)\s*",
-                      "", m.group(1).strip())
-        rooms.append({"name": name,
-                      "guests": int(gm.group(1)) if gm else None,
-                      "per_night": price})
-
-    hist: dict[str, float] = {}
-    hm = re.search(r"%s\s?(\d[\d.,]{1,6})\s*(?:ist\s+niedrig|is\s+low)" % _EUR, text)
-    if hm:
-        hist["low"] = parse_money(hm.group(1))
-    # "... EUR166 EUR292 EUR430" (niedrig / typisch / hoch) im Historie-Widget
-    tri = re.search(r"%s\s?(\d{2,4})\D{0,12}%s\s?(\d{2,4})\D{0,12}%s\s?(\d{2,4})\D{0,40}"
-                    r"(?:Preisverlauf|price history)" % (_EUR, _EUR, _EUR), text)
-    if tri:
-        lo, mid, hi = (parse_money(x) for x in tri.groups())
-        hist.update(low=hist.get("low") or lo, typical=mid, high=hi)
-
-    return {"otas": otas, "rooms": rooms, "history": hist,
-            "one_night": bool(re.search(r"\b1\s*(?:Nacht|night)\b", text))}
+        try:
+            raw_url = json.loads('"' + m.group(3) + '"')
+        except ValueError:
+            raw_url = m.group(3)
+        target = parse_qs(urlparse(raw_url).query).get("pcurl", [""])[0]
+        url = target or ("https://www.google.com" + raw_url)
+        name = m.group(1)
+        if name not in best or total < best[name].total:
+            best[name] = ProviderPrice(name, per_night, total, url)
+    return sorted(best.values(), key=lambda p: p.total)
 
 
-def fetch(cfg: Config, proxy: str | None = None) -> HotelOffer:
+def fetch_providers(cfg: Config, checkin: date, checkout: date,
+                    proxy: str | None = None) -> list[HotelOffer]:
+    """Ein HotelOffer je Anbieter fuer genau diesen Zeitraum (Summe ueber die
+    guenstigste Zimmeraufteilung fuer alle Personen). Anbieter, die nicht fuer
+    alle noetigen Zimmergroessen einen Preis haben, fallen heraus."""
     t = cfg.trip
-    nights = (t.hotel_checkout - t.hotel_checkin).days or t.nights
-    url = _url(cfg)
-    offer = HotelOffer(source=SOURCE, ok=False, price_total=None,
-                       currency=t.currency, nights=nights, rooms=t.rooms,
-                       guests=t.persons, deep_link=url,
-                       room_desc=t.hotel.room_type_hint)
-    try:
-        html = _fetch_html(url, proxy)
-        data = _parse(_visible_text(html))
+    nights = (checkout - checkin).days
+    allocations = (explicit_allocations(t.hotel.allowed_room_shapes, t.persons)
+                   if t.hotel.allowed_room_shapes
+                   else candidate_allocations(t.persons, t.max_persons_per_room))
+    sizes = sorted({size for a in allocations for size in a})
+    per_size: dict[int, dict[str, ProviderPrice]] = {}
+    for size in sizes:
+        url = _url_for(cfg, checkin, checkout, size)
+        try:
+            html = _fetch_html(url, proxy)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("%s: 1 Zimmer/%d Erw. fehlgeschlagen: %s", SOURCE, size, exc)
+            continue
+        per_size[size] = {p.name: p for p in extract_providers(html)}
+        log.info("%s: 1 Zimmer/%d Erw. %s->%s: %d Anbieter", SOURCE, size, checkin,
+                 checkout, len(per_size[size]))
 
-        # Ehrliche Einordnung: Google Hotels SSR ignoriert die Belegung in der
-        # URL und liefert Nachtpreise fuer das *guenstigste* Zimmer (meist 2
-        # Pers.), nicht fuer 3 Villen / 8 Pers. Wir nehmen daher den
-        # guenstigsten sichtbaren Nachtpreis (OTA-Zeile ODER Zimmertyp-Zeile)
-        # als FLOOR-Richtwert. Fuer den echten "3 Villen / 8 Pers."-Preis:
-        # config.trip.reference_offers pflegen (z.B. CHECK24-Fund).
-        ota_min = min(data["otas"].values()) if data["otas"] else None
-        room_prices = [r["per_night"] for r in data["rooms"] if r["per_night"]]
-        room_min = min(room_prices) if room_prices else None
-        villa3 = [r["per_night"] for r in data["rooms"]
-                  if r["per_night"] and r["guests"] and r["guests"] >= t.max_persons_per_room]
-
-        cands = [x for x in (ota_min, room_min) if x]
-        per_night = min(cands) if cands else data["history"].get("low")
-
-        offer.raw = {
-            "otas": data["otas"], "rooms": data["rooms"], "history": data["history"],
-            "estimate": data["one_night"],
-            "villa_min_per_night": min(villa3) if villa3 else None,
-            "basis": ("guenstigster sichtbarer Nachtpreis x Zimmer x Naechte - "
-                      "Belegung/3-Pers.-Villa NICHT beruecksichtigt (Floor-Richtwert; "
-                      "die CHECK24-Quelle sucht die Belegung korrekt und wird "
-                      "bevorzugt, wenn sie erfolgreich war)"),
-        }
-
-        if per_night and per_night > 0:
-            offer.ok = True
-            offer.per_night = round(per_night, 2)
-            offer.price_total = round(per_night * t.rooms * nights, 2)
-            if data["one_night"]:
-                offer.error = ("Google zeigt fuer den Zeitraum nur 1-Nacht-Preise "
-                               "(Mai 2027 noch nicht buchbar) - Floor-Richtwert")
-            log.info("%s: %.0f/Nacht (Floor) -> gesamt %.0f %s%s%s", SOURCE, per_night,
-                     offer.price_total, t.currency,
-                     " [1N-Richtwert]" if data["one_night"] else "",
-                     f" | Villa>=3 ab {min(villa3):.0f}" if villa3 else "")
-        else:
-            offer.error = "keine Preise aus Google Hotels lesbar (Layout?)"
-            log.warning("%s: %s (html %d B)", SOURCE, offer.error, len(html))
-    except Exception as exc:  # noqa: BLE001
-        offer.error = f"{type(exc).__name__}: {exc}"
-        log.warning("%s: Fehler %s", SOURCE, offer.error)
-    return offer
+    names = sorted({n for d in per_size.values() for n in d})
+    offers: list[HotelOffer] = []
+    for name in names:
+        price_per_size = {s: per_size[s][name].total for s in sizes
+                          if name in per_size.get(s, {})}
+        best = cheapest_allocation(allocations, price_per_size)
+        if not best:
+            continue
+        counts, total = best
+        info = {str(s): {"url": per_size[s][name].url, "cheapest": per_size[s][name].total,
+                         "per_night": per_size[s][name].per_night}
+                for s in sizes if name in per_size.get(s, {})}
+        offers.append(HotelOffer(
+            source=f"{name} (Google)", ok=True, price_total=round(total, 2),
+            currency=t.currency, nights=nights, rooms=sum(counts.values()),
+            guests=t.persons, per_night=round(total / nights, 2) if nights else None,
+            deep_link=next(iter(info.values()))["url"],
+            room_desc=t.hotel.room_type_hint,
+            raw={"provider": name, "via": "Google Hotels",
+                 "checkin": checkin.isoformat(), "checkout": checkout.isoformat(),
+                 "room_split": {str(k): v for k, v in counts.items()},
+                 "per_room_size": info, "all_in": True,
+                 "basis": "Preis inkl. Steuern und Gebuehren laut Google Hotels, "
+                          "je Zimmergroesse einzeln gesucht, guenstigste Aufteilung"},
+        ))
+    offers.sort(key=lambda o: o.price_total)
+    return offers

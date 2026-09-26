@@ -22,10 +22,7 @@ function employeeDiscountNote(provider) {
 }
 
 const CAT_LABELS = {
-  flight_total: "Flug (Hin+Rück)",
-  hotel_total: "Hotel",
-  separate_total: "Einzelbuchung",
-  package_total: "Pauschalreise",
+  hotel_total: "Hotel (günstigster Tarif)",
 };
 const CAT_COLORS = {
   flight_total: "#e2793d",
@@ -106,8 +103,9 @@ async function loadStatus() {
 async function loadSummary() {
   const s = await api("/api/summary");
   CURRENCY = s.currency || CURRENCY;
-  renderVerdictCards(s.trends || {}, s.totals || {}, s.persons);
-  renderVersus(s.verdict || {}, s.totals || {}, s.persons);
+  state.summary = s;
+  renderBestHotel(s.verdict || {}, s.totals || {}, s.persons);
+  renderVerdictCards(s.trends || {}, s.totals || {}, s.persons, s.flight);
   renderCheapestFlight(s.flight, (s.verdict || {}).return_reference);
 }
 
@@ -134,32 +132,75 @@ function perPerson(total, persons) {
   return total != null && persons ? `≈ ${money(total / persons)} p. P.` : "";
 }
 
-function renderVerdictCards(trends, totals, persons) {
+function renderVerdictCards(trends, totals, persons, flight) {
   const box = $("#verdictCards");
   box.innerHTML = "";
-  for (const cat of ["flight_total", "hotel_total", "package_total"]) {
-    const t = trends[cat] || { state: "unbekannt", label: "keine Daten" };
-    const c = el("div", "card");
-    const head = el("div");
-    const dot = el("span", `dot ${t.state}`);
-    head.appendChild(dot);
-    head.appendChild(document.createTextNode(CAT_LABELS[cat]));
-    const big = el("div", "big");
-    big.textContent = money(totals[cat]);
-    const pp = el("div", "small muted");
-    pp.textContent = perPerson(totals[cat], persons);
-    const pill = el("span", `pill ${t.state}`);
-    pill.textContent = t.label;
-    const sub = el("div", "sub");
-    if (t.avg) {
-      const arrow = t.pct_vs_avg > 0 ? "▲" : t.pct_vs_avg < 0 ? "▼" : "•";
-      sub.textContent = `Ø ${money(t.avg)}  ${arrow} ${t.pct_vs_avg ?? 0}%  (n=${t.n})`;
-    } else {
-      sub.textContent = `noch keine Vergleichsbasis`;
-    }
-    c.append(head, big, pp, pill, sub);
-    box.appendChild(c);
+  const t = trends.hotel_total || { state: "unbekannt", label: "keine Daten" };
+  const c = el("div", "card");
+  const head = el("div");
+  head.appendChild(el("span", `dot ${t.state}`));
+  head.appendChild(document.createTextNode(CAT_LABELS.hotel_total));
+  const big = el("div", "big");
+  big.textContent = money(totals.hotel_total);
+  const pp = el("div", "small muted");
+  pp.textContent = perPerson(totals.hotel_total, persons);
+  const pill = el("span", `pill ${t.state}`);
+  pill.textContent = t.label;
+  const sub = el("div", "sub");
+  if (t.avg) {
+    const arrow = t.pct_vs_avg > 0 ? "▲" : t.pct_vs_avg < 0 ? "▼" : "•";
+    sub.textContent = `Ø ${money(t.avg)}  ${arrow} ${t.pct_vs_avg ?? 0}%  (n=${t.n})`;
+  } else {
+    sub.textContent = "noch keine Vergleichsbasis";
   }
+  c.append(head, big, pp, pill, sub);
+  box.appendChild(c);
+
+  if (flight && flight.pax_mode === "booked") {
+    const f = el("div", "card");
+    const fh = el("div");
+    fh.appendChild(el("span", "dot guenstig"));
+    fh.appendChild(document.createTextNode("Flug (Hin+Rück)"));
+    const fb = el("div", "big");
+    fb.textContent = money(flight.price_total);
+    const fp = el("div", "small muted");
+    fp.textContent = perPerson(flight.price_total, persons);
+    const fs = el("div", "sub");
+    fs.textContent = "gebucht";
+    f.append(fh, fb, fp, fs);
+    box.appendChild(f);
+  }
+}
+
+// Hero: guenstigster Santiburi-Tarif fuer den gebuchten Zeitraum.
+function renderBestHotel(verdict, totals, persons) {
+  const box = $("#bestHotel");
+  const h = verdict.hotel;
+  if (!h || totals.hotel_total == null) {
+    box.innerHTML = `<div class="card"><div class="sub">Noch kein Hotelpreis vorhanden.</div></div>`;
+    return;
+  }
+  $("#bestHotelDates").textContent = `${shortDate(h.checkin)}–${shortDate(h.checkout)}${verdict.nights_used ? ` · ${verdict.nights_used} Nächte` : ""}`;
+  const nights = verdict.nights_used || 0;
+  const perNight = nights ? totals.hotel_total / nights : null;
+  const c = el("div", "card");
+  const link = h.deep_link ? `<a href="${h.deep_link}" target="_blank" rel="noopener">${h.source} öffnen →</a>` : h.source;
+  let split = "";
+  if (h.room_split && h.per_room_size) {
+    const parts = Object.entries(h.room_split).map(([size, count]) => {
+      const info = h.per_room_size[size] || {};
+      const label = `${count}× ${size}er-Zimmer`;
+      return info.url ? `<a href="${info.url}" target="_blank" rel="noopener">${label}</a>` : label;
+    });
+    split = `<div class="seg muted">${parts.join(" + ")} (je Zimmergröße eigener Link)</div>`;
+  }
+  c.innerHTML = `<div class="label">${h.source}</div>
+    <div class="big">${money(totals.hotel_total)}</div>
+    <div class="small muted">${perPerson(totals.hotel_total, persons)}${perNight ? ` · ${money(perNight)} pro Nacht (alle Zimmer)` : ""} · inkl. Steuern/Gebühren${(h.source || "").startsWith("santiburi") ? " (geschätzt)" : ""}</div>
+    <div class="sub" style="margin-top:8px">${link}</div>${split}`;
+  box.innerHTML = "";
+  box.appendChild(c);
+  $("#verdictNotes").textContent = (verdict.notes || []).join("  —  ");
 }
 
 function renderVersus(verdict, totals, persons) {
@@ -633,17 +674,71 @@ function shortDate(iso) {
   return d ? `${d}.${m}.` : "?";
 }
 
+// Vergleichbarer Endpreis (inkl. Steuern/Gebuehren): Santiburi direkt zeigt
+// Preise ohne, dafuer gibt es eine Schaetzung; Google-Anbieter sind inkl.
+function comparable(r) {
+  const raw = r.raw || {};
+  return raw.price_total_incl_fees_estimate || r.price_total;
+}
+
+function renderHotelCompare(rows, ci, co) {
+  const box = $("#hotelCompare");
+  const list = rows
+    .filter((r) => r.ok && r.price_total != null && !r.is_reference &&
+      (r.raw || {}).checkin === ci && (r.raw || {}).checkout === co)
+    .sort((a, b) => comparable(a) - comparable(b));
+  if (!list.length) { box.innerHTML = `<p class="muted small">Keine Angebote für diesen Zeitraum.</p>`; return; }
+  const best = comparable(list[0]);
+  const persons = (state.summary || {}).persons;
+  const nights = Math.round((new Date(co) - new Date(ci)) / 86400000);
+  const body = list.map((r, i) => {
+    const raw = r.raw || {};
+    const price = comparable(r);
+    const direct = (r.source || "").startsWith("santiburi");
+    const parts = raw.room_split && raw.per_room_size
+      ? Object.entries(raw.room_split).map(([size, cnt]) => {
+          const info = raw.per_room_size[size] || {};
+          const lbl = `${cnt}× ${size}er`;
+          return info.url ? `<a href="${info.url}" target="_blank" rel="noopener">${lbl}</a>` : lbl;
+        }).join(" + ")
+      : "";
+    const notes = [];
+    if (direct) {
+      notes.push(`<span title="${(raw.tax_fee_note || "").replace(/"/g, "&quot;")}">ohne Steuern ${money(r.price_total)}, Gebühren geschätzt</span>`);
+      if (raw.member_rate_note) notes.push(`<span style="color:var(--teal)">👤 Member-Rate</span>`);
+    } else if (raw.via) {
+      notes.push(`via ${raw.via}, inkl. Steuern/Gebühren`);
+    }
+    const diff = i === 0 ? `<span class="tag teal">günstigster</span>` : `<span class="muted">+${money(price - best)}</span>`;
+    const link = r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">öffnen →</a>` : "";
+    return `<tr class="${i === 0 ? "win" : ""}">
+      <td>${i + 1}</td>
+      <td>${r.source}${employeeDiscountNote(raw.provider || r.source)}</td>
+      <td class="mono nowrap">${money(price)}<div class="seg muted">${diff}</div></td>
+      <td class="mono nowrap">${persons ? money(price / persons) : "–"}</td>
+      <td class="mono nowrap">${nights ? money(price / nights) : "–"}</td>
+      <td class="small">${parts}</td>
+      <td class="small muted">${notes.join(" · ")}</td>
+      <td class="nowrap">${link}</td></tr>`;
+  }).join("");
+  box.innerHTML = `<table class="stack-narrow"><thead><tr>
+    <th>#</th><th>Anbieter</th><th>Gesamt</th><th>p. P.</th><th>pro Nacht</th><th>Zimmer</th><th>Hinweis</th><th></th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+
 // Nutzer 19.09.26: Hotelpreis je Datumskombination (Ankunft = Abflug+1),
 // damit man sieht, was welches Flugdatum-Paar fuers Hotel bedeutet.
 function renderHotelMatrix(rows) {
   const box = $("#hotelMatrix");
-  const tagged = rows.filter((r) => (r.raw || {}).checkin && !r.is_reference);
+  const tagged = rows.filter((r) => (r.raw || {}).checkin && !r.is_reference && r.ok);
   if (!tagged.length) { box.innerHTML = ""; return; }
   const key = (r) => `${r.raw.checkin}|${r.raw.checkout}`;
   const combos = [...new Set(tagged.map(key))].sort();
-  const sources = [...new Set(tagged.map((r) => r.source))];
+  const cheapestBySource = {};
+  for (const r of tagged) if (r.price_total != null) cheapestBySource[r.source] = Math.min(cheapestBySource[r.source] ?? Infinity, comparable(r));
+  const sources = Object.keys(cheapestBySource).sort((a, b) => cheapestBySource[a] - cheapestBySource[b]);
   let best = null;
-  for (const r of tagged) if (r.ok && r.price_total != null && (best === null || r.price_total < best)) best = r.price_total;
+  for (const r of tagged) if (r.price_total != null && (best === null || comparable(r) < best)) best = comparable(r);
   const head = combos.map((k) => {
     const [a, b] = k.split("|");
     return `<th>${shortDate(a)}–${shortDate(b)}<div class="seg muted">${Math.round((new Date(b) - new Date(a)) / 86400000)} Nächte</div></th>`;
@@ -652,11 +747,10 @@ function renderHotelMatrix(rows) {
     const cells = combos.map((k) => {
       const r = tagged.find((x) => x.source === src && key(x) === k);
       if (!r) return `<td class="muted">–</td>`;
-      if (!r.ok || r.price_total == null) return `<td class="muted" title="${(r.error || "").replace(/"/g, "&quot;")}">–</td>`;
-      const fees = (r.raw || {}).price_total_incl_fees_estimate;
-      const txt = `${money(r.price_total)}${fees ? `<div class="seg" style="color:var(--amber)">inkl. Gebühren ca. ${money(fees)}</div>` : ""}`;
+      if (r.price_total == null) return `<td class="muted">–</td>`;
+      const txt = money(comparable(r));
       const inner = r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">${txt}</a>` : txt;
-      return `<td class="mono${r.price_total === best ? " win" : ""}">${inner}</td>`;
+      return `<td class="mono${comparable(r) === best ? " win" : ""}">${inner}</td>`;
     }).join("");
     return `<tr><td>${src}</td>${cells}</tr>`;
   }).join("");
@@ -666,6 +760,8 @@ function renderHotelMatrix(rows) {
 async function loadHotels() {
   const data = await api("/api/hotels");
   renderHotelMatrix(data.rows || []);
+  const vh = ((state.summary || {}).verdict || {}).hotel;
+  if (vh && vh.checkin) renderHotelCompare(data.rows || [], vh.checkin, vh.checkout);
   const tb = $("#hotelsTable tbody");
   tb.innerHTML = "";
   if (!data.rows.length) { tb.innerHTML = `<tr><td colspan="7" class="muted">noch keine Hoteldaten</td></tr>`; return; }

@@ -201,20 +201,27 @@ def run_check(trigger: str = "manual") -> dict:
         hotels, hh = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
     health["hotels"] = hh
 
-    # 3) Pauschalreisen --------------------------------------------------
-    try:
-        packages, ph = collect_packages(cfg)
-    except Exception as exc:  # noqa: BLE001
-        packages, ph = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
-    health["packages"] = ph
+    # 3) Pauschalreisen / ITA Matrix: mit gebuchtem Flug gegenstandslos (ein
+    # Paket enthaelt den Flug) - der Tracker ist dann reiner Hotelvergleich.
+    if booked:
+        packages, ph = [], {"ok": True, "count": 0, "note": "Flug gebucht - uebersprungen"}
+        ita_matrix_rows, ih = [], {"ok": True, "count": 0, "note": "Flug gebucht - uebersprungen"}
+        health["packages"] = ph
+        health["ita_matrix"] = ih
+    else:
+        try:
+            packages, ph = collect_packages(cfg)
+        except Exception as exc:  # noqa: BLE001
+            packages, ph = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+        health["packages"] = ph
 
-    # 3a) ITA Matrix - reine Recherche-Referenz, NICHT buchbar, fliesst
-    # deshalb NICHT in den Vergleich/Verdict ein (siehe Modul-Docstring).
-    try:
-        ita_matrix_rows, ih = flights_ita_matrix.collect(cfg)
-    except Exception as exc:  # noqa: BLE001
-        ita_matrix_rows, ih = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
-    health["ita_matrix"] = ih
+        # 3a) ITA Matrix - reine Recherche-Referenz, NICHT buchbar, fliesst
+        # deshalb NICHT in den Vergleich/Verdict ein (siehe Modul-Docstring).
+        try:
+            ita_matrix_rows, ih = flights_ita_matrix.collect(cfg)
+        except Exception as exc:  # noqa: BLE001
+            ita_matrix_rows, ih = [], {"ok": False, "count": 0, "error": f"{type(exc).__name__}: {exc}"}
+        health["ita_matrix"] = ih
 
     # 3b) Manuell recherchierte Referenzpreise (CHECK24 & Co.) einmischen
     ref_hotels, ref_packages = _reference_offers(cfg)

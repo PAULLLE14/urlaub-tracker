@@ -30,11 +30,15 @@ _PLAYWRIGHT_ADAPTERS = {
 # Nutzer 19.09.26: ein Flug 14.->28. bringt nur dann etwas, wenn das Hotel
 # dazu passt (Ankunft +1 Tag). Deshalb wird fuer diese Quellen jede
 # Hotel-Datumskombination echt abgefragt statt eine Nacht hoch-/runterzurechnen.
-_MATRIX_SOURCES = ("santiburi_official", "check24")
+# Santiburi direkt bewusst NICHT hier: die Buchungsmaschine sitzt hinter einer
+# Bot-Abfrage (Imperva) - nur der gebuchte Zeitraum wird dort abgefragt.
+_MATRIX_SOURCES = ("check24",)
 
 
 def hotel_date_combos(cfg: Config) -> list[tuple[date, date]]:
-    """(Checkin, Checkout) je Flug-Datumspaar: Checkin = Abflug + 1 Tag."""
+    """(Checkin, Checkout) je Flug-Datumspaar: Checkin = Abflug + 1 Tag. Bei
+    bereits gebuchtem Flug: die Kombination des gebuchten Flugs zuerst; die
+    uebrigen bleiben als Vergleich (was kostet eine Nacht mehr/weniger)."""
     return sorted({(d + timedelta(days=1), r) for d, r in cfg.trip.rt_date_pairs()})
 
 
@@ -93,14 +97,17 @@ def collect_hotels(cfg: Config, proxy: str | None = None) -> tuple[list[HotelOff
     hc = cfg.sources.hotels
     offers: list[HotelOffer] = []
 
-    # 1) Primaerquelle: Google Hotels (synchron, kein Browser)
+    # 1) Google Hotels: alle Anbieter je Zeitraum (HTTP, kein Browser) - der
+    # eigentliche Vergleich (Booking, Expedia, Agoda, Trip.com, CHECK24, TUI ...).
     if hc.google_hotels.enabled:
-        try:
-            offers.append(google_hotels.fetch(cfg, proxy=proxy))
-        except Exception as exc:  # noqa: BLE001
-            offers.append(HotelOffer(source="google_hotels", ok=False,
-                                     price_total=None, currency=cfg.trip.currency,
-                                     error=f"{type(exc).__name__}: {exc}"))
+        for ci, co in hotel_date_combos(cfg):
+            try:
+                offers += google_hotels.fetch_providers(cfg, ci, co, proxy=proxy)
+            except Exception as exc:  # noqa: BLE001
+                offers.append(_tag_dates(HotelOffer(
+                    source="google_hotels", ok=False, price_total=None,
+                    currency=cfg.trip.currency,
+                    error=f"{type(exc).__name__}: {exc}"), ci, co))
 
     # 2) Optionale Playwright-Fallbacks
     pw_names = [n for n in _PLAYWRIGHT_ADAPTERS if getattr(hc, n).enabled]

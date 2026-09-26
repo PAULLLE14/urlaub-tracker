@@ -143,11 +143,18 @@ def _hotel_tier(h: HotelOffer) -> int:
     return 2 if is_floor else 0
 
 
+def comparable_price(h: HotelOffer) -> float:
+    """Vergleichbarer Endpreis: Santiburi direkt zeigt Preise OHNE Steuern/
+    Gebuehren (dafuer gibt es eine Schaetzung), Google-Anbieter sind bereits
+    inkl. - nur so ist der Vergleich fair."""
+    return (h.raw or {}).get("price_total_incl_fees_estimate") or h.price_total
+
+
 def _best_hotel(pool: list[HotelOffer]) -> HotelOffer | None:
     if not pool:
         return None
     best_tier = min(_hotel_tier(h) for h in pool)
-    return min((h for h in pool if _hotel_tier(h) == best_tier), key=lambda h: h.price_total)
+    return min((h for h in pool if _hotel_tier(h) == best_tier), key=comparable_price)
 
 
 def _hotel_dates(h: HotelOffer, cfg: Config) -> tuple[str, str]:
@@ -170,10 +177,10 @@ def _hotel_for_flight(flight: FlightOffer, hotels: list[HotelOffer],
                   flight.return_date.isoformat())
         exact = _best_hotel([h for h in hotels if _hotel_dates(h, cfg) == target])
         if exact:
-            return exact, exact.price_total, True
+            return exact, comparable_price(exact), True
     default = (cfg.trip.hotel_checkin.isoformat(), cfg.trip.hotel_checkout.isoformat())
     base = _best_hotel([h for h in hotels if _hotel_dates(h, cfg) == default]) or _best_hotel(hotels)
-    price = base.price_total
+    price = comparable_price(base)
     delta = _hotel_nights_delta(flight, cfg)
     if delta and base.per_night:
         price += delta * base.per_night
@@ -329,7 +336,7 @@ def build_verdict(flights: list[FlightOffer], hotels: list[HotelOffer],
             v.hotel, price, v.hotel_exact = _hotel_for_flight(v.flight, hotel_ok, cfg)
         else:
             v.hotel = _best_hotel(hotel_ok)
-            price = v.hotel.price_total
+            price = comparable_price(v.hotel)
         tier = _hotel_tier(v.hotel)
         if tier == 1:
             v.notes.append(f"Hotelpreis = manuelle Referenz '{v.hotel.source}' "
@@ -342,8 +349,9 @@ def build_verdict(flights: list[FlightOffer], hotels: list[HotelOffer],
         ci, co = _hotel_dates(v.hotel, cfg)
         v.hotel_checkin, v.hotel_checkout = ci, co
         if v.hotel_exact:
-            v.notes.append(f"Hotel fuer genau {ci} -> {co} live abgefragt "
-                           f"({v.hotel.source}, {v.hotel.price_total:.0f}).")
+            v.notes.append(f"Guenstigster Tarif fuer genau {ci} -> {co}: {v.hotel.source}, "
+                           f"{price:.0f} EUR inkl. Steuern/Gebuehren"
+                           f"{' (Santiburi direkt: Schaetzung inkl. 10% Service + 7% MwSt + 1% Provinzsteuer)' if (v.hotel.raw or {}).get('price_total_incl_fees_estimate') else ''}.")
             nights = (date.fromisoformat(co) - date.fromisoformat(ci)).days
         else:
             delta = _hotel_nights_delta(v.flight, cfg) if v.flight else 0

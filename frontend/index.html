@@ -29,11 +29,23 @@
     </div>
 
     <section>
-      <h2>Trend-Ampel</h2>
-      <div class="grid3" id="verdictCards"></div>
+      <h2>G&uuml;nstigster Santiburi-Tarif <span class="small muted" id="bestHotelDates"></span></h2>
+      <div id="bestHotel"></div>
+      <p class="small muted" id="verdictNotes" style="margin-top:12px"></p>
     </section>
 
     <section>
+      <h2>Hotel-Vergleich &ndash; alle Anbieter f&uuml;r den gebuchten Zeitraum</h2>
+      <p class="small muted" style="margin-top:-6px">Gesamtpreis f&uuml;r alle Personen, inkl. Steuern und Geb&uuml;hren (Santiburi direkt: Sch&auml;tzung, da die Seite Steuern/Geb&uuml;hren erst sp&auml;ter aufschl&auml;gt). Je Anbieter die g&uuml;nstigste Zimmeraufteilung.</p>
+      <div class="table-wrap"><div id="hotelCompare"></div></div>
+    </section>
+
+    <section>
+      <h2>Trend</h2>
+      <div class="grid3" id="verdictCards"></div>
+    </section>
+
+    <section hidden>
       <h2>Einzelbuchung vs. Pauschalreise (<span id="versusSubline">&hellip;</span>)</h2>
       <div class="versus" id="versus">
         <div class="side" id="sideSeparate">
@@ -48,11 +60,10 @@
           <div class="delta" id="pkgInfo"></div>
         </div>
       </div>
-      <p class="small muted" id="verdictNotes" style="margin-top:12px"></p>
     </section>
 
     <section>
-      <h2>G&uuml;nstigste zusammenh&auml;ngende Buchung (unabh&auml;ngig vom Hotel)</h2>
+      <h2>Gebuchter Flug</h2>
       <div id="cheapestFlight"></div>
     </section>
 
@@ -62,7 +73,7 @@
       <canvas id="chart" height="90"></canvas>
     </section>
 
-    <section>
+    <section hidden>
       <h2>Alle zusammenh&auml;ngenden Buchungen</h2>
       <p class="small muted" style="margin-top:-6px">Nur Round-Trip (gleicher Flughafen) und Multi-City (Hin/R&uuml;ck unterschiedlich, trotzdem ein Ticket). Einzelrichtungs-Tickets werden nicht angezeigt. Die g&uuml;nstigsten Kombinationen werden zus&auml;tzlich mit der echten Personenzahl (8) gegengepr&uuml;ft (Badge <span class="tag teal">Gruppe gepr&uuml;ft</span>) &ndash; nicht best&auml;tigte 1-Pax-Hochrechnungen werden ausgeschlossen.</p>
       <div class="filters">
@@ -114,7 +125,7 @@
       </div>
     </section>
 
-    <section>
+    <section hidden>
       <h2>ITA Matrix &ndash; Recherche-Referenz <span class="tag">nicht direkt buchbar</span></h2>
       <p class="small muted" style="margin-top:-6px">Googles Fare-Research-Tool findet manchmal Routings/Tarife, die die normale Flugsuche nicht zeigt &ndash; man kann dort aber nichts kaufen. 1&nbsp;Pax gesucht, x&nbsp;Personenzahl hochgerechnet (gleiche Methode wie bei den buchbaren Fl&uuml;gen).</p>
       <div class="table-wrap">
@@ -128,8 +139,13 @@
     </section>
 
     <section>
-      <h2>Hotel &ndash; Santiburi Koh Samui</h2>
+      <h2>Zeitraum-Vergleich (eine Nacht mehr/weniger)</h2>
       <div id="hotelMatrix" class="table-wrap"></div>
+    </section>
+
+    <section>
+      <details class="tech-details">
+      <summary>Alle Hotel-Angebote (Details, inkl. Fehlversuche)</summary>
       <div class="table-wrap">
         <table id="hotelsTable" class="stack-narrow">
           <thead><tr>
@@ -139,9 +155,10 @@
           <tbody></tbody>
         </table>
       </div>
+      </details>
     </section>
 
-    <section>
+    <section hidden>
       <h2>Pauschalreisen</h2>
       <div class="table-wrap">
         <table id="packagesTable" class="stack-narrow">

@@ -281,3 +281,4 @@ footer { text-align: center; color: var(--muted-soft); font-size: 11px; padding:
   .versus .amount, .card .big { font-size: 23px; }
 }
 td.win { background: var(--coral-soft); font-weight: 600; }
+tr.win td { background: var(--coral-soft); }
