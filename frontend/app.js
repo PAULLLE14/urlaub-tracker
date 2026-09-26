@@ -11,6 +11,20 @@ const state = { flights: null, chart: null, chartSeries: {}, employeeDiscounts: 
 // gepflegt (trip.employee_discounts), hier nur als Hinweistext neben dem
 // jeweiligen Anbieter angezeigt, AENDERT NIE einen angezeigten Preis (der
 // genaue Rabatt/Verfuegbarkeit steht erst beim Checkout fest).
+// Prozentwert aus dem Rabatt-Hinweis ("bis 12% Rabatt ..."), nur reine
+// Hotel-Rabatte (Flug+Hotel-Paketrabatte gelten hier nicht).
+function employeeDiscountPct(provider) {
+  if (!provider) return null;
+  const p = provider.toLowerCase();
+  const hit = Object.entries(state.employeeDiscounts).find(([name]) => {
+    const n = name.toLowerCase();
+    return p.includes(n) || n.includes(p);
+  });
+  if (!hit || /flug/i.test(hit[1])) return null;
+  const m = hit[1].match(/(\d+)\s?%/);
+  return m ? Number(m[1]) : null;
+}
+
 function employeeDiscountNote(provider) {
   if (!provider) return "";
   const p = provider.toLowerCase();
@@ -717,7 +731,10 @@ function renderHotelCompare(rows, ci, co) {
     return `<tr class="${i === 0 ? "win" : ""}">
       <td>${i + 1}</td>
       <td>${r.source}${employeeDiscountNote(raw.provider || r.source)}</td>
-      <td class="mono nowrap">${money(price)}<div class="seg muted">${diff}</div></td>
+      <td class="mono nowrap">${money(price)}<div class="seg muted">${diff}</div>${(() => {
+        const pct = employeeDiscountPct(raw.provider || r.source);
+        return pct ? `<div class="seg" style="color:var(--teal)" title="Rabatt laut Mitarbeiterportal, genauer Wert erst beim Checkout">mit bis zu ${pct}% ≈ ${money(price * (1 - pct / 100))}</div>` : "";
+      })()}</td>
       <td class="mono nowrap">${persons ? money(price / persons) : "–"}</td>
       <td class="mono nowrap">${nights ? money(price / nights) : "–"}</td>
       <td class="small">${parts}</td>
