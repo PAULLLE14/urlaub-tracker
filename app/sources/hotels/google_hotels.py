@@ -216,10 +216,13 @@ def fetch_providers(cfg: Config, checkin: date, checkout: date,
                 log.warning("%s: 1 Zimmer/%d Erw. Versuch %d fehlgeschlagen: %s",
                             SOURCE, size, attempt + 1, exc)
                 continue
+            before = len(merged)
             for p in found:
                 if p.name not in merged or p.total < merged[p.name].total:
                     merged[p.name] = p
-            if len(merged) >= _ENOUGH_PROVIDERS:
+            # Live-Fund 26.09.26: vom Hetzner-Server liefert Google dauerhaft nur ~5
+            # Anbieter (lokal 12) - ein Wiederholen bringt dann nichts Neues.
+            if len(merged) >= _ENOUGH_PROVIDERS or (attempt and len(merged) == before):
                 break
         if not merged:
             continue
