@@ -372,7 +372,7 @@ def build_verdict(flights: list[FlightOffer], hotels: list[HotelOffer],
     if pkg_ok:
         v.package = min(pkg_ok, key=lambda p: p.price_total)
         v.package_total = round(v.package.price_total, 2)
-    else:
+    elif not cfg.trip.booked_flight:
         v.notes.append("Keine Pauschalreise gefunden (fuer Mai 2027 oft noch "
                        "nicht buchbar).")
 

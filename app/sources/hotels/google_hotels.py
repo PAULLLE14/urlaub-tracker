@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import time
 from dataclasses import dataclass
 from datetime import date
 from urllib.parse import parse_qs, quote_plus, urlparse
@@ -130,6 +131,8 @@ _PROVIDER_ENTRY = re.compile(r'\["([^"\\]{2,40})",(\d+),"(/travel/lodging/clk[^"
 _PRICE_PAIR = re.compile(r'\["([\d.,]+)\s?[€]"\],\["([\d.,]+)\s?[€]"\]')
 
 
+_MAX_ATTEMPTS = 4
+_ENOUGH_PROVIDERS = 10
 _SPONSORED_BLOCK = re.compile(r'data-id="j2tiVc_([^"]+)"')
 _SPONSORED_PRICE = re.compile(r'>([\d.,]+\s?€)<')
 _SPONSORED_LINK = re.compile(r'href="(/aclk[^"]+)"')
@@ -200,12 +203,27 @@ def fetch_providers(cfg: Config, checkin: date, checkout: date,
     per_size: dict[int, dict[str, ProviderPrice]] = {}
     for size in sizes:
         url = _url_for(cfg, checkin, checkout, size)
-        try:
-            html = _fetch_html(url, proxy)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("%s: 1 Zimmer/%d Erw. fehlgeschlagen: %s", SOURCE, size, exc)
+        # Live-Fund 26.09.26: Google liefert vom Server je Abruf nur 2-6 von ~12
+        # Anbietern (lokal 12) - mehrfach abrufen und pro Anbieter den besten
+        # Preis behalten, bis genug Anbieter beisammen sind.
+        merged: dict[str, ProviderPrice] = {}
+        for attempt in range(_MAX_ATTEMPTS):
+            if attempt:
+                time.sleep(3)
+            try:
+                found = extract_providers(_fetch_html(url, proxy))
+            except Exception as exc:  # noqa: BLE001
+                log.warning("%s: 1 Zimmer/%d Erw. Versuch %d fehlgeschlagen: %s",
+                            SOURCE, size, attempt + 1, exc)
+                continue
+            for p in found:
+                if p.name not in merged or p.total < merged[p.name].total:
+                    merged[p.name] = p
+            if len(merged) >= _ENOUGH_PROVIDERS:
+                break
+        if not merged:
             continue
-        per_size[size] = {p.name: p for p in extract_providers(html)}
+        per_size[size] = merged
         log.info("%s: 1 Zimmer/%d Erw. %s->%s: %d Anbieter", SOURCE, size, checkin,
                  checkout, len(per_size[size]))
 
