@@ -131,7 +131,7 @@ def test_reference_hotel_beats_floor_estimate():
                      currency="EUR", is_reference=True, raw={"note": "3 Zimmer"})
     v = build_verdict([_rt(7000)], [floor, ref], [], c)
     assert v.hotel_total == 8300          # Referenz schlaegt Floor-Richtwert
-    assert any("manuelle Referenz" in n for n in v.notes)
+    assert any("manuell erfasste Referenz" in n for n in v.notes)
 
 
 def test_concrete_scrape_beats_reference():
@@ -334,3 +334,15 @@ def test_hotel_choice_uses_price_including_fees_estimate():
     v = build_verdict([booked], [direct, ota], [], c)
     assert v.hotel is ota
     assert v.hotel_total == 8500.0
+
+
+def test_cheaper_manual_reference_beats_pricier_scrape():
+    # Nutzer 26.09.26: der manuell gefundene Stayforlong-Preis (8167) ist ein
+    # echter Preis und muss einen teureren Scrape (8848) schlagen.
+    c = get_config()
+    scrape = HotelOffer(source="Trip.com (Google)", ok=True, price_total=8848.0, currency="EUR",
+                        raw={"checkin": "2027-05-15", "checkout": "2027-05-28"})
+    ref = HotelOffer(source="referenz:Stayforlong", ok=True, price_total=8167.0, currency="EUR",
+                     is_reference=True, raw={"note": "manuell"})
+    v = build_verdict([_rt(7183.36)], [scrape, ref], [], c)
+    assert v.hotel is ref and v.hotel_total == 8167.0

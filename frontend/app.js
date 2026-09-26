@@ -684,8 +684,8 @@ function comparable(r) {
 function renderHotelCompare(rows, ci, co) {
   const box = $("#hotelCompare");
   const list = rows
-    .filter((r) => r.ok && r.price_total != null && !r.is_reference &&
-      (r.raw || {}).checkin === ci && (r.raw || {}).checkout === co)
+    .filter((r) => r.ok && r.price_total != null &&
+      (r.is_reference || ((r.raw || {}).checkin === ci && (r.raw || {}).checkout === co)))
     .sort((a, b) => comparable(a) - comparable(b));
   if (!list.length) { box.innerHTML = `<p class="muted small">Keine Angebote für diesen Zeitraum.</p>`; return; }
   const best = comparable(list[0]);
@@ -710,6 +710,7 @@ function renderHotelCompare(rows, ci, co) {
       notes.push(`via ${raw.via}, inkl. Steuern/Gebühren`);
     }
     if (raw.rate_note) notes.push(raw.rate_note);
+    if (r.is_reference) notes.push(`<span class="tag">manuell erfasst</span> ${raw.note || ""}`);
     if (raw.cheapest_refundable) notes.push(`kostenlos stornierbar ab ${money(raw.cheapest_refundable)}`);
     const diff = i === 0 ? `<span class="tag teal">günstigster</span>` : `<span class="muted">+${money(price - best)}</span>`;
     const link = r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">öffnen →</a>` : "";

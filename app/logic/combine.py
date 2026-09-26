@@ -135,11 +135,10 @@ def _hotel_nights_delta(flight: FlightOffer, cfg: Config) -> int | None:
 
 
 def _hotel_tier(h: HotelOffer) -> int:
-    """Konkreter Scrape (0) schlaegt manuelle Referenz (1) schlaegt Floor-/1-Nacht-Richtwert (2)."""
+    """Echte Preise (Scrape ODER manuell gefundene Referenz, beide real) schlagen
+    Floor-/1-Nacht-Richtwerte (2); innerhalb der echten gewinnt der guenstigste."""
     raw = h.raw or {}
     is_floor = raw.get("estimate") or "Floor" in raw.get("basis", "")
-    if getattr(h, "is_reference", False):
-        return 1
     return 2 if is_floor else 0
 
 
@@ -338,11 +337,11 @@ def build_verdict(flights: list[FlightOffer], hotels: list[HotelOffer],
             v.hotel = _best_hotel(hotel_ok)
             price = comparable_price(v.hotel)
         tier = _hotel_tier(v.hotel)
-        if tier == 1:
-            v.notes.append(f"Hotelpreis = manuelle Referenz '{v.hotel.source}' "
-                           f"({v.hotel.price_total:.0f}). Automatische Quellen liefern "
-                           f"nur Floor-Richtwerte (Belegung nicht abbildbar).")
-        elif tier == 2:
+        if getattr(v.hotel, "is_reference", False):
+            v.notes.append(f"Guenstigster Preis ist eine manuell erfasste Referenz "
+                           f"('{v.hotel.source}', {v.hotel.price_total:.0f} EUR) - vor dem "
+                           f"Buchen am Link pruefen, Preis kann sich geaendert haben.")
+        if tier == 2:
             v.notes.append(f"Hotelpreis {v.hotel.price_total:.0f} ist ein Floor-Richtwert "
                            f"(guenstigstes Zimmer x {cfg.trip.rooms} x {cfg.trip.nights} N, "
                            f"ohne 3-Pers.-Villa-Aufpreis) - via reference_offers praezisieren.")

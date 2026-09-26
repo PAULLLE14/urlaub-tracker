@@ -92,12 +92,16 @@ trip:
     note: "Gebucht - fester Preis fuer alle 8 Personen"
 
   reference_offers:
-    - label: "CHECK24 Direktfund"
-      category: hotel          # hotel | package
-      price_total: 8300        # gesamt, alle 8 Pers. / 3 Zimmer / 14 Naechte
+    # Manuell gefundener Preis (Nutzer 26.09.26, Screenshot; eigener Abruf am
+    # gleichen Tag: 8.086 EUR). Stayforlong sitzt hinter einer Bot-Abfrage fuer
+    # den Server - deshalb von Hand gepflegt. Flash-Deal "-33% heute": Preis
+    # kann sich taeglich aendern, vor dem Buchen am Link pruefen.
+    - label: "Stayforlong (manuell 26.09.)"
+      category: hotel
+      price_total: 8167
       currency: EUR
-      note: "3 Zimmer, 8 Personen, 14 Naechte"
-      url: ""                  # Link zum Angebot (optional)
+      note: "4 Zimmer x 2 Erw., 15.-28.05.2027, Duplex Suite, Fruehstueck, nicht erstattbar, inkl. Steuern. Flash-Deal (8.086-8.167 EUR beobachtet); kostenlos stornierbar ab ca. 11.388 EUR"
+      url: "https://www.stayforlong.de/de-de/hotel/th/santiburi-koh-samui_koh-samui?checkIn=2027-05-15&checkOut=2027-05-28&adults=2,2,2,2&children=!!!"
 
   # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal zeigt Zusatzrabatte auf
   # einzelne Anbieter - manuell nachtragen, wenn ein Anbieter tatsaechlich in
@@ -253,7 +257,7 @@ sources:
     google_hotels:      { enabled: true }
     # Weitere Live-Deep-Link-Quellen, gleicher Zimmergroessen-Split:
     santiburi_official: { enabled: true }   # Direktpreis, keine OTA-Marge
-    stayforlong:        { enabled: true }   # alle Zimmer in einer Suche (Nutzerfund 26.09.26)
+    stayforlong:        { enabled: false }  # Server-IP bekommt eine Bot-Abfrage (AWS WAF, 26.09.26) - Preis stattdessen als reference_offer
     lastminute:         { enabled: false }  # Cloudflare-Bot-Abfrage (26.09.26), nicht umgehbar
     # Expedia zeigt bei Playwright zuverlaessig einen Slider-Captcha (Bot-
     # Erkennung) - wird NICHT geloest. Deep-Link im Dashboard funktioniert
