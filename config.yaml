@@ -102,15 +102,16 @@ trip:
       currency: EUR
       note: "4 Zimmer x 2 Erw., 15.-28.05.2027, Duplex Suite, Fruehstueck, nicht erstattbar, inkl. Steuern. Flash-Deal (8.086-8.167 EUR beobachtet); kostenlos stornierbar ab ca. 11.388 EUR"
       url: "https://www.stayforlong.de/de-de/hotel/th/santiburi-koh-samui_koh-samui?checkIn=2027-05-15&checkOut=2027-05-28&adults=2,2,2,2&children=!!!"
-    # Expedia (Nutzer 26.09.26, Screenshot): 1 Zimmer/2 Reisende/13 Naechte 2.311 EUR
-    # inkl. Steuern & Gebuehren (5% Rabatt schon drin), "nur noch 4 zu diesem Preis"
-    # = genau 4 Zimmer. 4 x 2.311 = 9.244. Mitarbeiterrabatt (bis 12%) ist hier
-    # NICHT eingerechnet, der Vergleich zeigt ihn separat als Hinweis.
-    - label: "Expedia (manuell 26.09.)"
+    # Expedia (Nutzer 26.09.26): Web 1 Zimmer/2 Reisende/13 Naechte 2.311 EUR
+    # (x4 = 9.244), ueber die Expedia-APP 8.775 EUR fuer alle 4 Zimmer inkl.
+    # Steuern & Gebuehren. "Nur noch 4 zu diesem Preis" = genau 4 Zimmer. Der
+    # Mitarbeiterrabatt (bis 12%) ist NICHT eingerechnet, der Vergleich zeigt ihn
+    # separat als Hinweis (8.775 x 0,88 = ca. 7.722).
+    - label: "Expedia (App-Preis manuell 26.09.)"
       category: hotel
-      price_total: 9244
+      price_total: 8775
       currency: EUR
-      note: "4 Zimmer x 2.311 EUR (je 1 Zimmer/2 Reisende, 13 Naechte, inkl. Steuern/Gebuehren, 5% Rabatt enthalten); nur noch 4 Zimmer zu diesem Preis"
+      note: "4 Zimmer, 13 Naechte, inkl. Steuern/Gebuehren, Preis ueber die Expedia-App (Web: 4 x 2.311 = 9.244); nur noch 4 Zimmer zu diesem Preis; Rabatt ausgenommen"
       url: "https://www.expedia.de/Koh-Samui-Hotels-Santiburi-Koh-Samui.h1636437.Hotel-Information?chkin=2027-05-15&chkout=2027-05-28&rm1=a2&rm2=a2&rm3=a2&rm4=a2"
 
   # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal zeigt Zusatzrabatte auf
