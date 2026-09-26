@@ -709,6 +709,8 @@ function renderHotelCompare(rows, ci, co) {
     } else if (raw.via) {
       notes.push(`via ${raw.via}, inkl. Steuern/Gebühren`);
     }
+    if (raw.rate_note) notes.push(raw.rate_note);
+    if (raw.cheapest_refundable) notes.push(`kostenlos stornierbar ab ${money(raw.cheapest_refundable)}`);
     const diff = i === 0 ? `<span class="tag teal">günstigster</span>` : `<span class="muted">+${money(price - best)}</span>`;
     const link = r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">öffnen →</a>` : "";
     return `<tr class="${i === 0 ? "win" : ""}">

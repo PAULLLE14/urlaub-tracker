@@ -14,7 +14,7 @@ from ...config import Config
 from ...logging_setup import get_logger
 from ...offers import HotelOffer
 from ..scraper_base import playwright_available
-from . import booking, check24, expedia, google_hotels, lastminute, santiburi
+from . import booking, check24, expedia, google_hotels, lastminute, santiburi, stayforlong
 
 log = get_logger("source.hotels")
 
@@ -23,6 +23,7 @@ _PLAYWRIGHT_ADAPTERS = {
     "santiburi_official": santiburi,
     "expedia": expedia,
     "lastminute": lastminute,
+    "stayforlong": stayforlong,
     "booking": booking,
 }
 
@@ -32,7 +33,7 @@ _PLAYWRIGHT_ADAPTERS = {
 # Hotel-Datumskombination echt abgefragt statt eine Nacht hoch-/runterzurechnen.
 # Santiburi direkt bewusst NICHT hier: die Buchungsmaschine sitzt hinter einer
 # Bot-Abfrage (Imperva) - nur der gebuchte Zeitraum wird dort abgefragt.
-_MATRIX_SOURCES = ("check24",)
+_MATRIX_SOURCES = ("check24", "stayforlong")
 
 
 def hotel_date_combos(cfg: Config) -> list[tuple[date, date]]:

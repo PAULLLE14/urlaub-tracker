@@ -278,6 +278,8 @@ class HotelsSourceCfg(BaseModel):
     # Santiburi direkt, lastminute.com - gleicher Live-Deep-Link-Trick.
     santiburi_official: ToggleCfg = ToggleCfg()
     lastminute: ToggleCfg = ToggleCfg()
+    # Stayforlong: alle Zimmer in einer Suche, oft der guenstigste Preis (26.09.26).
+    stayforlong: ToggleCfg = ToggleCfg()
     # Expedia zeigt bei Playwright zuverlaessig einen Slider-Captcha (Bot-
     # Erkennung) - wird NICHT geloest (verboten). Deep-Link funktioniert
     # weiterhin fuer den manuellen Aufruf (Corporate-Rabatt), Default aus.

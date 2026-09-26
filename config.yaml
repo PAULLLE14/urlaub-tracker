@@ -253,6 +253,7 @@ sources:
     google_hotels:      { enabled: true }
     # Weitere Live-Deep-Link-Quellen, gleicher Zimmergroessen-Split:
     santiburi_official: { enabled: true }   # Direktpreis, keine OTA-Marge
+    stayforlong:        { enabled: true }   # alle Zimmer in einer Suche (Nutzerfund 26.09.26)
     lastminute:         { enabled: false }  # Cloudflare-Bot-Abfrage (26.09.26), nicht umgehbar
     # Expedia zeigt bei Playwright zuverlaessig einen Slider-Captcha (Bot-
     # Erkennung) - wird NICHT geloest. Deep-Link im Dashboard funktioniert
