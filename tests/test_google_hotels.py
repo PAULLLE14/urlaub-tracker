@@ -111,3 +111,14 @@ def test_extract_providers_reads_price_total_and_direct_link():
     assert res[0].total == 2212.0 and res[0].per_night == 170.0
     assert res[0].url.startswith("https://de.trip.com/hotels/redirect")
     assert res[1].total == 2435.0
+
+
+def test_extract_providers_reads_sponsored_expedia_block():
+    from app.sources.hotels.google_hotels import extract_providers
+
+    html = ('<div class="ADs2Tc" data-id="j2tiVc_Expedia.de"><a href="/aclk?sa=l&amp;ai=XYZ">'
+            '<span>170 €</span><span>170 €</span><span>2.215 €</span></a></div>')
+    res = extract_providers(html)
+    assert len(res) == 1 and res[0].name == "Expedia.de"
+    assert res[0].total == 2215.0 and res[0].per_night == 170.0
+    assert res[0].url == "https://www.google.com/aclk?sa=l&ai=XYZ"

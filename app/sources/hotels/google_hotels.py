@@ -130,6 +130,11 @@ _PROVIDER_ENTRY = re.compile(r'\["([^"\\]{2,40})",(\d+),"(/travel/lodging/clk[^"
 _PRICE_PAIR = re.compile(r'\["([\d.,]+)\s?[€]"\],\["([\d.,]+)\s?[€]"\]')
 
 
+_SPONSORED_BLOCK = re.compile(r'data-id="j2tiVc_([^"]+)"')
+_SPONSORED_PRICE = re.compile(r'>([\d.,]+\s?€)<')
+_SPONSORED_LINK = re.compile(r'href="(/aclk[^"]+)"')
+
+
 @dataclass
 class ProviderPrice:
     name: str
@@ -163,6 +168,21 @@ def extract_providers(html: str) -> list[ProviderPrice]:
         name = m.group(1)
         if name not in best or total < best[name].total:
             best[name] = ProviderPrice(name, per_night, total, url)
+
+    # Gesponserte "Vorgestellte Optionen" (z.B. Expedia.de) stehen NICHT im
+    # JSON oben, sondern nur als HTML-Block mit Werbe-Klicklink (/aclk?...).
+    blocks = list(_SPONSORED_BLOCK.finditer(html))
+    for k, m in enumerate(blocks):
+        end = blocks[k + 1].start() if k + 1 < len(blocks) else m.end() + 4000
+        seg = html[m.end():min(end, m.end() + 4000)]
+        prices = [parse_money(x) for x in _SPONSORED_PRICE.findall(seg)]
+        if len(prices) < 3 or not prices[0] or not prices[2]:
+            continue
+        name = m.group(1)
+        link = _SPONSORED_LINK.search(seg)
+        url = ("https://www.google.com" + link.group(1).replace("&amp;", "&")) if link else ""
+        if name not in best or prices[2] < best[name].total:
+            best[name] = ProviderPrice(name, prices[0], prices[2], url)
     return sorted(best.values(), key=lambda p: p.total)
 
 
