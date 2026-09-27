@@ -13,6 +13,10 @@ const state = { flights: null, chart: null, chartSeries: {}, employeeDiscounts: 
 // genaue Rabatt/Verfuegbarkeit steht erst beim Checkout fest).
 // Prozentwert aus dem Rabatt-Hinweis ("bis 12% Rabatt ..."), nur reine
 // Hotel-Rabatte (Flug+Hotel-Paketrabatte gelten hier nicht).
+function niceName(source) {
+  return (source || "").replace(/^referenz:/, "");
+}
+
 function employeeDiscountPct(provider) {
   if (!provider) return null;
   const p = provider.toLowerCase();
@@ -198,7 +202,7 @@ function renderBestHotel(verdict, totals, persons) {
   const nights = verdict.nights_used || 0;
   const perNight = nights ? totals.hotel_total / nights : null;
   const c = el("div", "card");
-  const link = h.deep_link ? `<a href="${h.deep_link}" target="_blank" rel="noopener">${h.source} öffnen →</a>` : h.source;
+  const link = h.deep_link ? `<a href="${h.deep_link}" target="_blank" rel="noopener">${niceName(h.source)} öffnen →</a>` : niceName(h.source);
   let split = "";
   if (h.room_split && h.per_room_size) {
     const parts = Object.entries(h.room_split).map(([size, count]) => {
@@ -208,7 +212,7 @@ function renderBestHotel(verdict, totals, persons) {
     });
     split = `<div class="seg muted">${parts.join(" + ")} (je Zimmergröße eigener Link)</div>`;
   }
-  c.innerHTML = `<div class="label">${h.source}</div>
+  c.innerHTML = `<div class="label">${niceName(h.source)}</div>
     <div class="big">${money(totals.hotel_total)}</div>
     <div class="small muted">${perPerson(totals.hotel_total, persons)}${perNight ? ` · ${money(perNight)} pro Nacht (alle Zimmer)` : ""} · inkl. Steuern/Gebühren${(h.source || "").startsWith("santiburi") ? " (geschätzt)" : ""}</div>
     <div class="sub" style="margin-top:8px">${link}</div>${split}`;
@@ -730,7 +734,7 @@ function renderHotelCompare(rows, ci, co) {
     const link = r.deep_link ? `<a href="${r.deep_link}" target="_blank" rel="noopener">öffnen →</a>` : "";
     return `<tr class="${i === 0 ? "win" : ""}">
       <td>${i + 1}</td>
-      <td>${r.source}${employeeDiscountNote(raw.provider || r.source)}</td>
+      <td>${niceName(r.source)}${r.is_reference ? "" : employeeDiscountNote(raw.provider || r.source)}</td>
       <td class="mono nowrap">${money(price)}<div class="seg muted">${diff}</div>${(() => {
         const pct = r.is_reference ? null : employeeDiscountPct(raw.provider || r.source);  // Referenzen enthalten den Rabatt schon
         return pct ? `<div class="seg" style="color:var(--teal)" title="Rabatt laut Mitarbeiterportal, genauer Wert erst beim Checkout">mit bis zu ${pct}% ≈ ${money(price * (1 - pct / 100))}</div>` : "";
