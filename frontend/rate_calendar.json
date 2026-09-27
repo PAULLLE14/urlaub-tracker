@@ -1,0 +1,18 @@
+{
+  "source": "Santiburi direkt (reservation.santiburisamui.com), Preiskalender, bester Preis pro Zimmer/Nacht, 2 Gaeste, ohne Steuern/Gebuehren",
+  "captured": "2026-09-26",
+  "currency": "EUR",
+  "months": [
+    {"m": "Okt 2026", "min": 161, "avg": 196, "max": 277},
+    {"m": "Nov 2026", "min": 149, "avg": 154, "max": 267},
+    {"m": "Dez 2026", "min": 170, "avg": 327, "max": 748},
+    {"m": "Jan 2027", "min": 282, "avg": 383, "max": 682},
+    {"m": "Feb 2027", "min": 282, "avg": 359, "max": 402},
+    {"m": "Mär 2027", "min": 282, "avg": 290, "max": 372},
+    {"m": "Apr 2027", "min": 173, "avg": 222, "max": 312},
+    {"m": "Mai 2027", "min": 142, "avg": 147, "max": 155, "trip": true},
+    {"m": "Jun 2027", "min": 151, "avg": 151, "max": 151},
+    {"m": "Jul 2027", "min": 298, "avg": 315, "max": 336},
+    {"m": "Aug 2027", "min": 318, "avg": 336, "max": 358}
+  ]
+}

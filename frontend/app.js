@@ -781,6 +781,28 @@ function renderHotelMatrix(rows) {
   box.innerHTML = `<table class="stack-narrow"><thead><tr><th>Hotel je Zeitraum</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+// Jahresverlauf der Santiburi-Direktpreise (statische Momentaufnahme, siehe
+// rate_calendar.json - der Server kommt an die Buchungsseite nicht heran).
+async function loadRateCalendar() {
+  const box = $("#rateCalendar");
+  const r = await fetch("/rate_calendar.json");
+  if (!r.ok) { box.innerHTML = ""; return; }
+  const d = await r.json();
+  $("#rateCalNote").textContent = `Preis pro Zimmer/Nacht, 2 Gäste, ohne Steuern · Stand ${d.captured}`;
+  const top = Math.max(...d.months.map((m) => m.max));
+  box.innerHTML = d.months.map((m) => {
+    const w = Math.round((m.avg / top) * 100);
+    const lo = Math.round((m.min / top) * 100), hi = Math.round((m.max / top) * 100);
+    return `<div style="display:flex;align-items:center;gap:10px;margin:3px 0${m.trip ? ";font-weight:600" : ""}">
+      <span class="mono" style="width:78px">${m.m}</span>
+      <span style="position:relative;flex:1;height:16px;background:var(--border, #ddd);border-radius:3px">
+        <span style="position:absolute;left:${lo}%;width:${Math.max(1, hi - lo)}%;top:6px;height:4px;background:#bbb"></span>
+        <span style="position:absolute;left:0;width:${w}%;height:16px;background:${m.trip ? "var(--coral, #d9614a)" : "#6db3aa"};border-radius:3px;opacity:.85"></span>
+      </span>
+      <span class="mono nowrap" style="width:170px">Ø ${money(m.avg)} <span class="muted small">(${m.min}–${m.max})</span>${m.trip ? " ← eure Reise" : ""}</span></div>`;
+  }).join("");
+}
+
 async function loadHotels() {
   const data = await api("/api/hotels");
   renderHotelMatrix(data.rows || []);
@@ -948,7 +970,7 @@ async function loadHealth() {
 async function refreshAll() {
   const jobs = {
     Status: loadStatus, Zusammenfassung: loadSummary, Verlauf: loadHistory,
-    Flüge: loadFlights, "ITA Matrix": loadItaMatrix, Hotels: loadHotels, Pauschal: loadPackages, "Quellen-Status": loadHealth,
+    Flüge: loadFlights, "ITA Matrix": loadItaMatrix, Hotels: loadHotels, Jahresverlauf: loadRateCalendar, Pauschal: loadPackages, "Quellen-Status": loadHealth,
   };
   const errs = [];
   for (const [name, fn] of Object.entries(jobs)) {
