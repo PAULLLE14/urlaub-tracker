@@ -28,3 +28,21 @@ def test_history_ignores_other_date_ranges():
 
 def test_history_none_when_no_usable_rows():
     assert comparable_hotel_price([_row("x", 1.0, ok=False)], get_config()) is None
+
+
+def test_snapshot_won_by_stale_reference_is_recomputed_from_real_scrapes():
+    import app.logic.trends as tr
+
+    rows = [_row("referenz:Expedia", 7722.0, ref=True), _row("check24", 9916.0)]
+    session = SimpleNamespace(scalars=lambda q: iter(rows))
+    snap = SimpleNamespace(run_id=1, hotel_total=7722.0, verdict={"hotel": {"is_reference": True}})
+    assert tr._hotel_value(session, snap, get_config()) == 9916.0
+
+
+def test_snapshot_with_only_reference_and_no_scrape_is_dropped():
+    import app.logic.trends as tr
+
+    rows = [_row("referenz:Expedia", 7722.0, ref=True)]
+    session = SimpleNamespace(scalars=lambda q: iter(rows))
+    snap = SimpleNamespace(run_id=1, hotel_total=7722.0, verdict={"hotel": {"is_reference": True}})
+    assert tr._hotel_value(session, snap, get_config()) is None

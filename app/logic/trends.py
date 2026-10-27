@@ -49,14 +49,19 @@ def comparable_hotel_price(rows, cfg: Config) -> float | None:
 
 
 def _hotel_value(session, snap: BestSnapshot, cfg: Config) -> float | None:
-    """hotel_total einer Messung fuer Trend/Verlauf - neu berechnet, damit alte
-    und neue Messungen vergleichbar sind. Ist der Tagessieger eine manuelle
-    Referenz (kein Scrape), bleibt der gespeicherte Wert."""
-    hotel = (snap.verdict or {}).get("hotel") or {}
-    if hotel.get("is_reference"):
-        return snap.hotel_total
+    """hotel_total einer Messung fuer Trend/Verlauf - immer aus den echten
+    Scrape-Angeboten dieses Laufs neu berechnet, damit alte und neue Messungen
+    vergleichbar sind. Manuelle Referenzen (die irgendwann veralten, z.B. der
+    Expedia-App-Preis vom 26.09.) zaehlen nicht - sonst wuerde der Trend gegen
+    einen Preis laufen, den es laengst nicht mehr gibt. Nur wenn ein Lauf gar
+    keinen echten Preis hatte, bleibt der gespeicherte Wert (ausser er stammt
+    aus einer Referenz)."""
     rows = list(session.scalars(select(HotelOfferRow).where(HotelOfferRow.run_id == snap.run_id)))
-    return comparable_hotel_price(rows, cfg) or snap.hotel_total
+    value = comparable_hotel_price(rows, cfg)
+    if value:
+        return value
+    hotel = (snap.verdict or {}).get("hotel") or {}
+    return None if hotel.get("is_reference") else snap.hotel_total
 
 
 def classify(current: float | None, history: list[float], cfg: Config) -> dict:
