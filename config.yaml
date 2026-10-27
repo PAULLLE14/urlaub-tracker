@@ -91,28 +91,11 @@ trip:
     return_date: "2027-05-28"
     note: "Gebucht - fester Preis fuer alle 8 Personen"
 
-  reference_offers:
-    # Manuell gefundener Preis (Nutzer 26.09.26, Screenshot; eigener Abruf am
-    # gleichen Tag: 8.086 EUR). Stayforlong sitzt hinter einer Bot-Abfrage fuer
-    # den Server - deshalb von Hand gepflegt. Flash-Deal "-33% heute": Preis
-    # kann sich taeglich aendern, vor dem Buchen am Link pruefen.
-    - label: "Stayforlong (manuell 26.09.)"
-      category: hotel
-      price_total: 8167
-      currency: EUR
-      note: "4 Zimmer x 2 Erw., 15.-28.05.2027, Duplex Suite, Fruehstueck, nicht erstattbar, inkl. Steuern. Flash-Deal (8.086-8.167 EUR beobachtet); kostenlos stornierbar ab ca. 11.388 EUR"
-      url: "https://www.stayforlong.de/de-de/hotel/th/santiburi-koh-samui_koh-samui?checkIn=2027-05-15&checkOut=2027-05-28&adults=2,2,2,2&children=!!!"
-    # Expedia (Nutzer 26.09.26): Web 1 Zimmer/2 Reisende/13 Naechte 2.311 EUR
-    # (x4 = 9.244), ueber die Expedia-APP 8.775 EUR fuer alle 4 Zimmer inkl.
-    # Steuern & Gebuehren. Der Mitarbeiterrabatt von 12% war im Warenkorb
-    # bestaetigt (echt, nicht nur "bis"): 8.775 x 0,88 = 7.722 EUR. "Nur noch 4
-    # zu diesem Preis" = genau 4 Zimmer.
-    - label: "Expedia (App + 12% Rabatt, Warenkorb 26.09.)"
-      category: hotel
-      price_total: 7722
-      currency: EUR
-      note: "4 Zimmer, 13 Naechte, inkl. Steuern/Gebuehren: App-Preis 8.775 EUR abzgl. 12% Mitarbeiterrabatt (im Warenkorb bestaetigt) = 7.722 EUR; nur noch 4 Zimmer zu diesem Preis"
-      url: "https://www.expedia.de/Koh-Samui-Hotels-Santiburi-Koh-Samui.h1636437.Hotel-Information?chkin=2027-05-15&chkout=2027-05-28&rm1=a2&rm2=a2&rm3=a2&rm4=a2"
+  # Manuelle Referenzpreise (Expedia-App 7.722 und Stayforlong 8.167, beide vom
+  # 26.09.26) am 27.10.26 entfernt: Preise sind seitdem um ~25-30% gestiegen, die
+  # Deals gab es nicht mehr (Stayforlong heute 10.179, Expedia Google 11.184) -
+  # sie haetten faelschlich als guenstigster Tarif oben gestanden.
+  reference_offers: []
 
   # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal zeigt Zusatzrabatte auf
   # einzelne Anbieter - manuell nachtragen, wenn ein Anbieter tatsaechlich in
