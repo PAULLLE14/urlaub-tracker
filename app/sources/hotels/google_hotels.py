@@ -131,8 +131,22 @@ _PROVIDER_ENTRY = re.compile(r'\["([^"\\]{2,40})",(\d+),"(/travel/lodging/clk[^"
 _PRICE_PAIR = re.compile(r'\["([\d.,]+)\s?[€]"\],\["([\d.,]+)\s?[€]"\]')
 
 
-_MAX_ATTEMPTS = 4
-_ENOUGH_PROVIDERS = 10
+_MAX_ATTEMPTS = 3
+_ENOUGH_2 = 7           # 2er-Zimmer: normal 9-16 Anbieter, unter 7 = gedrosselt
+_ENOUGH_3 = 2           # 3er-Zimmer haben von Haus aus nur 1-3 Anbieter
+_REQUEST_GAP = 8.0      # Sekunden Mindestabstand zwischen Google-Abrufen
+_RETRY_GAP = 25.0
+_last_request = 0.0
+
+
+def _pace(gap: float) -> None:
+    global _last_request
+    wait = _last_request + gap - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _last_request = time.monotonic()
+
+
 _SPONSORED_BLOCK = re.compile(r'data-id="j2tiVc_([^"]+)"')
 _SPONSORED_PRICE = re.compile(r'>([\d.,]+\s?€)<')
 _SPONSORED_LINK = re.compile(r'href="(/aclk[^"]+)"')
@@ -203,26 +217,26 @@ def fetch_providers(cfg: Config, checkin: date, checkout: date,
     per_size: dict[int, dict[str, ProviderPrice]] = {}
     for size in sizes:
         url = _url_for(cfg, checkin, checkout, size)
-        # Live-Fund 26.09.26: Google liefert vom Server je Abruf nur 2-6 von ~12
-        # Anbietern (lokal 12) - mehrfach abrufen und pro Anbieter den besten
-        # Preis behalten, bis genug Anbieter beisammen sind.
+        # Live-Fund 07.11.26: nacheinander abgeschickte Abrufe (8 in wenigen
+        # Sekunden) bekommen von Google gedrosselte Antworten mit nur 2-3 von ~12
+        # Anbietern - der guenstigste (Super.com) fehlte dann im Lauf, obwohl er
+        # einzeln abgerufen vom selben Server sofort kommt. Deshalb: Abstand
+        # zwischen allen Abrufen, und bei zu wenigen Anbietern nach einer
+        # laengeren Pause erneut, besten Preis je Anbieter behalten.
+        enough = _ENOUGH_2 if size <= 2 else _ENOUGH_3
         merged: dict[str, ProviderPrice] = {}
         for attempt in range(_MAX_ATTEMPTS):
-            if attempt:
-                time.sleep(3)
+            _pace(_RETRY_GAP if attempt else _REQUEST_GAP)
             try:
                 found = extract_providers(_fetch_html(url, proxy))
             except Exception as exc:  # noqa: BLE001
                 log.warning("%s: 1 Zimmer/%d Erw. Versuch %d fehlgeschlagen: %s",
                             SOURCE, size, attempt + 1, exc)
                 continue
-            before = len(merged)
             for p in found:
                 if p.name not in merged or p.total < merged[p.name].total:
                     merged[p.name] = p
-            # Live-Fund 26.09.26: vom Hetzner-Server liefert Google dauerhaft nur ~5
-            # Anbieter (lokal 12) - ein Wiederholen bringt dann nichts Neues.
-            if len(merged) >= _ENOUGH_PROVIDERS or (attempt and len(merged) == before):
+            if len(merged) >= enough:
                 break
         if not merged:
             continue
