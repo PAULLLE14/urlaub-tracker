@@ -122,3 +122,28 @@ def test_extract_providers_reads_sponsored_expedia_block():
     assert len(res) == 1 and res[0].name == "Expedia.de"
     assert res[0].total == 2215.0 and res[0].per_night == 170.0
     assert res[0].url == "https://www.google.com/aclk?sa=l&ai=XYZ"
+
+
+def test_mix_offer_combines_cheapest_provider_per_room_size():
+    from datetime import date
+    from types import SimpleNamespace
+
+    from app.sources.hotels.google_hotels import ProviderPrice, _mix_offer
+
+    cfg = SimpleNamespace(trip=SimpleNamespace(currency="EUR", persons=8,
+                                               hotel=SimpleNamespace(room_type_hint="")))
+    per_size = {
+        2: {"A": ProviderPrice("A", 170, 2200.0, "u2A"), "B": ProviderPrice("B", 190, 2500.0, "u2B")},
+        3: {"A": ProviderPrice("A", 300, 3900.0, "u3A"), "B": ProviderPrice("B", 250, 3300.0, "u3B")},
+    }
+    allocs = [{3: 2, 2: 1}, {2: 4}]
+    # 3+3+2: 2*3300 (B) + 2200 (A) = 8800 < 4*2200 = 8800? -> gleich, daher kein Mix
+    assert _mix_offer(cfg, per_size, allocs, [2, 3], date(2027, 5, 15), date(2027, 5, 28), 13,
+                      best_single=8800.0) is None
+    # Mit teurerem 2er bei B und billigem 3er: Mix gewinnt gegen jeden Einzelanbieter
+    per_size[3]["B"] = ProviderPrice("B", 240, 3100.0, "u3B")
+    mix = _mix_offer(cfg, per_size, allocs, [2, 3], date(2027, 5, 15), date(2027, 5, 28), 13,
+                     best_single=8800.0)
+    assert mix is not None and mix.price_total == 2 * 3100.0 + 2200.0
+    assert mix.source == "Mix: B (2×3er) + A (1×2er)"
+    assert mix.raw["per_room_size"]["3"]["url"] == "u3B" and mix.raw["per_room_size"]["2"]["url"] == "u2A"

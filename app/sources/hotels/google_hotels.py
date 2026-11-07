@@ -269,5 +269,44 @@ def fetch_providers(cfg: Config, checkin: date, checkout: date,
                  "basis": "Preis inkl. Steuern und Gebuehren laut Google Hotels, "
                           "je Zimmergroesse einzeln gesucht, guenstigste Aufteilung"},
         ))
+    mix = _mix_offer(cfg, per_size, allocations, sizes, checkin, checkout, nights,
+                     best_single=min((o.price_total for o in offers), default=None))
+    if mix:
+        offers.append(mix)
     offers.sort(key=lambda o: o.price_total)
     return offers
+
+
+def _mix_offer(cfg: Config, per_size: dict[int, dict[str, ProviderPrice]],
+               allocations: list[dict[int, int]], sizes: list[int],
+               checkin: date, checkout: date, nights: int,
+               best_single: float | None) -> HotelOffer | None:
+    """Nutzer 07.11.26: 2er- und 3er-Zimmer duerfen bei VERSCHIEDENEN Anbietern
+    gebucht werden. Je Zimmergroesse zaehlt der guenstigste Anbieter ueber alle,
+    kombiniert zur guenstigsten Aufteilung. Nur ein eigenes Angebot, wenn es
+    wirklich guenstiger ist als jeder einzelne Anbieter."""
+    t = cfg.trip
+    cheapest: dict[int, ProviderPrice] = {}
+    for s in sizes:
+        if per_size.get(s):
+            cheapest[s] = min(per_size[s].values(), key=lambda p: p.total)
+    best = cheapest_allocation(allocations, {s: p.total for s, p in cheapest.items()})
+    if not best:
+        return None
+    counts, total = best
+    if best_single is not None and total >= best_single - 0.5:
+        return None
+    parts = " + ".join(f"{cheapest[s].name} ({n}×{s}er)" for s, n in sorted(counts.items(), reverse=True))
+    info = {str(s): {"url": cheapest[s].url, "cheapest": cheapest[s].total,
+                     "per_night": cheapest[s].per_night, "provider": cheapest[s].name}
+            for s in counts}
+    return HotelOffer(
+        source=f"Mix: {parts}", ok=True, price_total=round(total, 2),
+        currency=t.currency, nights=nights, rooms=sum(counts.values()),
+        guests=t.persons, per_night=round(total / nights, 2) if nights else None,
+        deep_link=next(iter(info.values()))["url"], room_desc=t.hotel.room_type_hint,
+        raw={"provider": "Mix", "via": "Google Hotels, Zimmer bei verschiedenen Anbietern",
+             "checkin": checkin.isoformat(), "checkout": checkout.isoformat(),
+             "room_split": {str(k): v for k, v in counts.items()},
+             "per_room_size": info, "all_in": True,
+             "basis": "Je Zimmergroesse der guenstigste Anbieter, getrennt gebucht"})
