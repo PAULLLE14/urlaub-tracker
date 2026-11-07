@@ -39,7 +39,12 @@ _MATRIX_SOURCES = ("check24", "stayforlong")
 def hotel_date_combos(cfg: Config) -> list[tuple[date, date]]:
     """(Checkin, Checkout) je Flug-Datumspaar: Checkin = Abflug + 1 Tag. Bei
     bereits gebuchtem Flug: die Kombination des gebuchten Flugs zuerst; die
-    uebrigen bleiben als Vergleich (was kostet eine Nacht mehr/weniger)."""
+    uebrigen bleiben als Vergleich (was kostet eine Nacht mehr/weniger).
+    Nutzer 07.11.26: Flug ist gebucht -> NUR dieser Zeitraum, die anderen
+    Kombinationen sind gegenstandslos (und jeder Abruf mehr drosselt Google)."""
+    b = cfg.trip.booked_flight
+    if b:
+        return [(b.outbound_date + timedelta(days=1), b.return_date)]
     return sorted({(d + timedelta(days=1), r) for d, r in cfg.trip.rt_date_pairs()})
 
 

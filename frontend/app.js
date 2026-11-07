@@ -759,6 +759,10 @@ function renderHotelMatrix(rows) {
   if (!tagged.length) { box.innerHTML = ""; return; }
   const key = (r) => `${r.raw.checkin}|${r.raw.checkout}`;
   const combos = [...new Set(tagged.map(key))].sort();
+  // Nur ein Zeitraum (Flug gebucht) -> kein Vergleich noetig, Abschnitt ausblenden.
+  const sec = box.closest("section");
+  if (sec) sec.hidden = combos.length <= 1;
+  if (combos.length <= 1) { box.innerHTML = ""; return; }
   const cheapestBySource = {};
   for (const r of tagged) if (r.price_total != null) cheapestBySource[r.source] = Math.min(cheapestBySource[r.source] ?? Infinity, comparable(r));
   const sources = Object.keys(cheapestBySource).sort((a, b) => cheapestBySource[a] - cheapestBySource[b]);
