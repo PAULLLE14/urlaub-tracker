@@ -214,7 +214,7 @@ function renderBestHotel(verdict, totals, persons) {
   }
   c.innerHTML = `<div class="label">${niceName(h.source)}</div>
     <div class="big">${money(totals.hotel_total)}</div>
-    <div class="small muted">${perPerson(totals.hotel_total, persons)}${perNight ? ` · ${money(perNight)} pro Nacht (alle Zimmer)` : ""} · inkl. Steuern/Gebühren${(h.source || "").startsWith("santiburi") ? " (geschätzt)" : ""}</div>
+    <div class="small muted">${perPerson(totals.hotel_total, persons)}${perNight ? ` · ${money(perNight)} pro Nacht (alle Zimmer)` : ""}${perNight && persons ? ` · <strong>${money2(perNight / persons)} pro Nacht p. P.</strong>` : ""} · inkl. Steuern/Gebühren${(h.source || "").startsWith("santiburi") ? " (geschätzt)" : ""}</div>
     <div class="sub" style="margin-top:8px">${link}</div>${split}`;
   box.innerHTML = "";
   box.appendChild(c);
@@ -740,13 +740,14 @@ function renderHotelCompare(rows, ci, co) {
         return pct ? `<div class="seg" style="color:var(--teal)" title="Rabatt laut Mitarbeiterportal, genauer Wert erst beim Checkout">mit bis zu ${pct}% ≈ ${money(price * (1 - pct / 100))}</div>` : "";
       })()}</td>
       <td class="mono nowrap">${persons ? money(price / persons) : "–"}</td>
+      <td class="mono nowrap">${persons && nights ? money2(price / persons / nights) : "–"}</td>
       <td class="mono nowrap">${nights ? money(price / nights) : "–"}</td>
       <td class="small">${parts}</td>
       <td class="small muted">${notes.join(" · ")}</td>
       <td class="nowrap">${link}</td></tr>`;
   }).join("");
   box.innerHTML = `<table class="stack-narrow"><thead><tr>
-    <th>#</th><th>Anbieter</th><th>Gesamt</th><th>p. P.</th><th>pro Nacht</th><th>Zimmer</th><th>Hinweis</th><th></th>
+    <th>#</th><th>Anbieter</th><th>Gesamt</th><th>p. P.</th><th>p. P./Nacht</th><th>pro Nacht</th><th>Zimmer</th><th>Hinweis</th><th></th>
     </tr></thead><tbody>${body}</tbody></table>`;
 }
 
