@@ -10,9 +10,10 @@ import threading
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from .config import get_config
+from .config import get_config, get_secrets
 from .logging_setup import get_logger
 
 log = get_logger("scheduler")
@@ -30,6 +31,20 @@ def _job() -> None:
             run_check(trigger="schedule")
         except Exception as exc:  # noqa: BLE001
             log.exception("Geplanter Check fehlgeschlagen: %s", exc)
+
+
+def _digest_job() -> None:
+    from .database import get_session
+    from .digest import send_daily_digest
+
+    session = get_session()
+    try:
+        ok = send_daily_digest(session, get_config(), get_secrets())
+        log.info("Tagesmail %s", "gesendet" if ok else "NICHT gesendet")
+    except Exception as exc:  # noqa: BLE001
+        log.exception("Tagesmail fehlgeschlagen: %s", exc)
+    finally:
+        session.close()
 
 
 def start() -> None:
@@ -60,6 +75,13 @@ def start() -> None:
         id=_JOB_ID, jitter=cfg.schedule.jitter_seconds,
         max_instances=1, coalesce=True, **kwargs,
     )
+    dg = cfg.alerts.daily_digest
+    if cfg.alerts.enabled and dg.enabled and "email" in cfg.alerts.channels:
+        _scheduler.add_job(
+            _digest_job, CronTrigger(hour=dg.hour, minute=dg.minute, timezone=dg.timezone),
+            id="daily_digest", max_instances=1, coalesce=True, misfire_grace_time=3600,
+        )
+        log.info("Tagesmail aktiv: taeglich %02d:%02d (%s)", dg.hour, dg.minute, dg.timezone)
     _scheduler.start()
     log.info("Scheduler gestartet: alle %.1f h (jitter %ds)",
              cfg.schedule.every_hours, cfg.schedule.jitter_seconds)

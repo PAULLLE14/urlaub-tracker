@@ -357,8 +357,17 @@ class AlertThresholds(BaseModel):
     package_total: float | None = None
 
 
+class DigestCfg(BaseModel):
+    """Taegliche Zusammenfassungs-Mail (nur ueber den E-Mail-Kanal)."""
+    enabled: bool = True
+    hour: int = 9
+    minute: int = 0
+    timezone: str = "Europe/Berlin"
+
+
 class AlertsCfg(BaseModel):
     enabled: bool = True
+    daily_digest: DigestCfg = DigestCfg()
     thresholds: AlertThresholds = AlertThresholds()
     cooldown_hours: float = 12
     channels: list[Literal["email", "ntfy"]] = ["email", "ntfy"]

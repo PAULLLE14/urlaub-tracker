@@ -300,9 +300,9 @@ alerts:
   # paar echten Durchlaeufen anhand des Preisverlaufs im Dashboard nachjustieren.
   thresholds:
     flight_total: 8000          # Round-Trip/Multi-City, 8 Pax
-    hotel_total: 8000           # 3 Zimmer x 13 Naechte (CHECK24-Aufteilung)
+    hotel_total: 8500           # Alarm, sobald der guenstigste Hotel-Tarif (8 Pax, inkl. Gebuehren) darunter faellt
     separate_total: 16000       # Flug + Hotel getrennt gebucht
     package_total: 20000        # guenstigste Pauschalreise (noch keine Daten)
   # Nicht oefter als alle X Stunden dieselbe Kategorie alarmieren.
   cooldown_hours: 12
-  channels: [email, ntfy]       # was tatsaechlich genutzt wird, haengt an .env
+  channels: [email]             # Preisalarm + Tagesmail (9 Uhr) per E-Mail; SMTP-Daten in .env

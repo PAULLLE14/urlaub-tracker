@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import smtplib
 from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import httpx
@@ -28,10 +29,16 @@ _CATEGORY_LABEL = {
 }
 
 
-def _send_email(sec: Secrets, subject: str, body: str) -> bool:
+def send_email(sec: Secrets, subject: str, body: str, html: str | None = None) -> bool:
     if not (sec.smtp_host and sec.alert_email_to):
+        log.warning("E-Mail nicht konfiguriert (SMTP_HOST/ALERT_EMAIL_TO leer)")
         return False
-    msg = MIMEText(body, "plain", "utf-8")
+    if html:
+        msg = MIMEMultipart("alternative")
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        msg.attach(MIMEText(html, "html", "utf-8"))
+    else:
+        msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
     msg["From"] = sec.smtp_from
     msg["To"] = ", ".join(sec.alert_email_to)
@@ -47,6 +54,9 @@ def _send_email(sec: Secrets, subject: str, body: str) -> bool:
     except Exception as exc:  # noqa: BLE001
         log.warning("E-Mail-Versand fehlgeschlagen: %s", exc)
         return False
+
+
+_send_email = send_email
 
 
 def _send_ntfy(sec: Secrets, title: str, body: str) -> bool:
