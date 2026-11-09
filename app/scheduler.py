@@ -35,6 +35,10 @@ def _job() -> None:
 def start() -> None:
     global _scheduler
     cfg = get_config()
+    from . import sync
+    if sync.mode() == "receiver":
+        log.info("Scheduler aus: Suche laeuft auf dem Worker (Sync-Empfaenger)")
+        return
     if not cfg.schedule.enabled:
         log.info("Scheduler deaktiviert (schedule.enabled=false)")
         return
