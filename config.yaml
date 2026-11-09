@@ -294,6 +294,8 @@ trend:
 # --- Benachrichtigungen ------------------------------------------------
 alerts:
   enabled: true
+  daily_digest:
+    dashboard_url: http://204.168.234.248:8080   # "Zum Tracker"-Button in der Tagesmail
   # Absolute Schwellen (Gesamtpreis fuer 8 Pax, in trip.currency).
   # Unterschreitung -> genau eine Mail/Push pro neuer Bestmarke.
   # Ausgangswerte auf Basis erster Live-Checks (Sept. 2026) - nach ein

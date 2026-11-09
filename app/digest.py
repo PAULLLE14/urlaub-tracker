@@ -153,6 +153,8 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
             f"  {i}. {x['name']}: {eur(x['price'])}" for i, x in enumerate(top, 1)]
     if link:
         t += ["", "Zum Angebot: Link in der HTML-Ansicht dieser Mail oder im Dashboard."]
+    if cfg.alerts.daily_digest.dashboard_url:
+        t += [f"Zum Tracker: {cfg.alerts.daily_digest.dashboard_url}"]
     text = "\n".join(t)
 
     # --- HTML ---
@@ -176,6 +178,11 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     button = (f'<a href="{escape(link)}" style="display:block;background:{GREEN};color:#FFFFFF;border-radius:10px;'
               f'padding:15px 20px;font:bold 17px {SANS};text-align:center;text-decoration:none">Zum Angebot</a>'
               ) if link else ""
+    tracker = cfg.alerts.daily_digest.dashboard_url
+    if tracker:
+        button += (f'<a href="{escape(tracker)}" style="display:block;margin-top:10px;background:#FFFFFF;color:{GREEN};'
+                   f'border:2px solid {GREEN};border-radius:10px;padding:13px 20px;font:bold 16px {SANS};'
+                   f'text-align:center;text-decoration:none">Zum Tracker</a>')
     flight_html = (f'<div style="padding:12px 0 14px;font:12px/1.5 {SANS};color:#555555;text-align:center;'
                    f'border-bottom:1px solid #E3E3DE">Flug (gebucht): {eur(flight, 2)} · '
                    f'Flug + Hotel zusammen: {eur(grand)}</div>') if flight else ""

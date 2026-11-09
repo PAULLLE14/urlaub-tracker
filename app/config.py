@@ -363,6 +363,7 @@ class DigestCfg(BaseModel):
     hour: int = 9
     minute: int = 0
     timezone: str = "Europe/Berlin"
+    dashboard_url: str = ""   # "Zum Tracker"-Button in der Mail (leer = kein Button)
 
 
 class AlertsCfg(BaseModel):
