@@ -25,7 +25,7 @@ log = get_logger("notify")
 
 _CATEGORY_LABEL = {
     "flight_total": "Flug (Hin+Rueck, 8 Pax)",
-    "hotel_total": "Hotel (8 Pax, guenstigster Tarif)",
+    "hotel_total": "Hotel (8 Personen, günstigster Tarif)",
     "separate_total": "Einzelbuchung (Flug + Hotel)",
     "package_total": "Pauschalreise",
 }
@@ -125,7 +125,7 @@ def maybe_alert(session, cfg: Config, sec: Secrets, snapshot_values: dict,
         body = (
             f"{cfg.trip.label}\n\n"
             f"{label}: {current:.2f} {cur}  (Schwelle {limit:.0f} {cur})\n"
-            f"Guenstiger: {'Pauschalreise' if verdict.get('winner') == 'pauschalreise' else 'Einzelbuchung'}\n"
+            f"Günstiger: {'Pauschalreise' if verdict.get('winner') == 'pauschalreise' else 'Einzelbuchung'}\n"
             f"Flug gesamt:  {verdict.get('flight_total')}\n"
             f"Hotel gesamt: {verdict.get('hotel_total')}\n"
             f"Einzelbuchung: {verdict.get('separate_total')}\n"

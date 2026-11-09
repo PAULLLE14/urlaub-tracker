@@ -17,7 +17,7 @@ from ..sources.hotels.santiburi import TAX_FEE_MULTIPLIER
 CATEGORIES = ("flight_total", "hotel_total", "separate_total", "package_total")
 
 _LABEL = {
-    "guenstig": "gerade guenstig",
+    "guenstig": "gerade günstig",
     "durchschnitt": "im Durchschnitt",
     "teuer": "gerade teuer",
     "unbekannt": "zu wenig Daten",

@@ -3,7 +3,7 @@
 Wird vom Scheduler (Worker) einmal am Tag zur konfigurierten Uhrzeit
 (``alerts.daily_digest``) verschickt. ``build_digest`` ist reine Darstellung
 auf den bereits gespeicherten Daten und damit gut testbar. Layout: Vorlage
-"Tropisch-Luxurioes" (verschachtelte Tabellen + Inline-CSS fuer Mail-Clients).
+"Tropisch-Luxuriös" (verschachtelte Tabellen + Inline-CSS fuer Mail-Clients).
 """
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, 
     if low and hotel_total and hotel_total <= low:
         rest += " Das ist der bisher niedrigste Preis seit Messbeginn!"
     elif trend.get("label"):
-        rest += f" Einordnung: {trend['label'].replace('guenstig', 'günstig')}."
+        rest += f" Einordnung: {trend['label']}."
     if alert:
         lead = "Preisalarm:"
         rest = (f"Der Hotelpreis liegt {eur(alert['limit'] - alert['price'])} unter deiner "
