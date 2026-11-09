@@ -132,7 +132,7 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     if low and hotel_total and hotel_total <= low:
         rest += " Das ist der bisher niedrigste Preis seit Messbeginn!"
     elif trend.get("label"):
-        rest += f" Einordnung: {trend['label']}."
+        rest += f" Einordnung: {trend['label'].replace('guenstig', 'günstig')}."
     mood = f"{lead} {rest}"
 
     today = datetime.now(ZoneInfo("Europe/Berlin"))
@@ -183,7 +183,7 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     def prov_row(x: dict) -> str:
         name = (f'<a href="{escape(x["url"])}" style="color:#222222;text-decoration:none">{escape(x["name"])}</a>'
                 if x["url"] else escape(x["name"]))
-        return (f'<tr><td style="padding:4px 0;font:14px {SANS};color:#222222">{name}</td>'
+        return (f'<tr><td align="left" style="padding:4px 0;font:14px {SANS};color:#222222;text-align:left">{name}</td>'
                 f'<td align="right" style="padding:4px 0;font:bold 14px {SANS};color:{GREEN}">{eur(x["price"])}</td></tr>')
 
     top_html = "".join(prov_row(x) for x in top)
