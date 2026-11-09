@@ -82,6 +82,10 @@ def maybe_alert(session, cfg: Config, sec: Secrets, snapshot_values: dict,
         return []
     out: list[str] = []
     thresholds = cfg.alerts.thresholds.model_dump()
+    if cfg.trip.booked_flight:
+        # Flug ist gebucht: nur der Hotelpreis kann sich noch aendern. Sonst
+        # wuerde der fixe Flugpreis (unter der Schwelle) alle 12 h alarmieren.
+        thresholds = {"hotel_total": thresholds.get("hotel_total")}
 
     for category, limit in thresholds.items():
         if limit is None:
