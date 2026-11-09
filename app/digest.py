@@ -2,12 +2,14 @@
 
 Wird vom Scheduler (Worker) einmal am Tag zur konfigurierten Uhrzeit
 (``alerts.daily_digest``) verschickt. ``build_digest`` ist reine Darstellung
-auf den bereits gespeicherten Daten und damit gut testbar.
+auf den bereits gespeicherten Daten und damit gut testbar. Layout: Vorlage
+"Tropisch-Luxurioes" (verschachtelte Tabellen + Inline-CSS fuer Mail-Clients).
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from html import escape
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -15,11 +17,17 @@ from sqlalchemy import select
 from .config import Config, Secrets
 from .logging_setup import get_logger
 from .logic.trends import history_series
-from .models import BestSnapshot, CheckRun, HotelOfferRow
+from .models import HotelOfferRow
 from .notify import send_email
-from .queries import summary_payload
+from .queries import latest_run, summary_payload
 
 log = get_logger("digest")
+
+HEADER_IMAGE = Path(__file__).parent / "assets" / "digest_header.jpg"
+
+GREEN, GOLD, CREAM = "#1B3B36", "#C4A468", "#F3EFE4"
+SERIF = "'Playfair Display',Georgia,'Times New Roman',serif"
+SANS = "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif"
 
 _MONTHS = ["", "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
            "August", "September", "Oktober", "November", "Dezember"]
@@ -33,7 +41,7 @@ def eur(x: float | None, decimals: int = 0) -> str:
 
 
 def _date(iso: str) -> str:
-    y, m, d = (int(p) for p in iso.split("-"))
+    _y, m, d = (int(p) for p in iso.split("-"))
     return f"{d}. {_MONTHS[m]}"
 
 
@@ -45,7 +53,7 @@ def _top_providers(session, run_id: int | None, limit: int = 5) -> list[dict]:
     if not run_id:
         return []
     rows = session.scalars(select(HotelOfferRow).where(HotelOfferRow.run_id == run_id))
-    best: dict[str, HotelOfferRow] = {}
+    best: dict[str, tuple] = {}
     for r in rows:
         if r.source.startswith("Mix:"):
             continue   # steht schon als Kombination oben
@@ -69,6 +77,10 @@ def _change_since(series_t: list[str], series_v: list[float | None], hours: floa
     return None if not older else round(now_v - older[-1], 2)
 
 
+def _tr(inner: str, style: str = "") -> str:
+    return f'<tr><td style="{style}">{inner}</td></tr>'
+
+
 def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     """Liefert (Betreff, HTML, Klartext)."""
     s = summary_payload(session, cfg)
@@ -78,13 +90,12 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     hotel_total = totals.get("hotel_total")
     persons = cfg.trip.persons
     nights = cfg.trip.nights
-    ci, co = hotel.get("checkin") or cfg.trip.hotel_checkin.isoformat(), \
-        hotel.get("checkout") or cfg.trip.hotel_checkout.isoformat()
+    ci = hotel.get("checkin") or cfg.trip.hotel_checkin.isoformat()
+    co = hotel.get("checkout") or cfg.trip.hotel_checkout.isoformat()
 
     hist = history_series(session, cfg)
     values = [v for v in hist["hotel_total"] if v]
     low = min(values) if values else None
-    high = max(values) if values else None
     day = _change_since(hist["t"], hist["hotel_total"], 20)
     trend = (s.get("trends") or {}).get("hotel_total") or {}
 
@@ -95,11 +106,9 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     for size in sorted(split, key=int, reverse=True):
         info = per_size.get(size) or {}
         prov = info.get("provider") or _provider(hotel.get("source", ""))
-        cnt = split[size]
-        each = info.get("cheapest")
-        line = f"{cnt} × {size}er-Zimmer bei {prov}"
-        if each:
-            line += f" – je {eur(each)}"
+        line = f"{split[size]} × {size}er-Zimmer bei {prov}"
+        if info.get("cheapest"):
+            line += f" – je {eur(info['cheapest'])}"
         combo.append(line)
     if not combo and hotel:
         combo.append(f"Alle Zimmer bei {_provider(hotel.get('source', ''))}")
@@ -109,20 +118,22 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     flight = totals.get("flight_total")
     grand = totals.get("separate_total")
     top = _top_providers(session, s.get("run_id"))
+    link = hotel.get("deep_link") or ""
 
-    # Stimmungszeile
+    # Stimmungszeile: (fett, Rest)
     if day is None:
-        mood = "Erste Messung – ab morgen sehe ich Veränderungen."
+        lead, rest = "Erste Messung:", "ab morgen sehe ich Veränderungen."
     elif day < -1:
-        mood = f"Gute Nachricht: Seit gestern ist es um {eur(abs(day))} günstiger geworden."
+        lead, rest = "Gute Nachricht:", f"Seit gestern ist es um {eur(abs(day))} günstiger geworden."
     elif day > 1:
-        mood = f"Leider {eur(day)} teurer als gestern."
+        lead, rest = "Achtung:", f"Seit gestern ist es um {eur(day)} teurer geworden."
     else:
-        mood = "Der Preis ist seit gestern unverändert."
+        lead, rest = "Stabil:", "Der Preis ist seit gestern unverändert."
     if low and hotel_total and hotel_total <= low:
-        mood += " Das ist der bisher niedrigste Preis seit Messbeginn!"
+        rest += " Das ist der bisher niedrigste Preis seit Messbeginn!"
     elif trend.get("label"):
-        mood += f" Einordnung: {trend['label']}."
+        rest += f" Einordnung: {trend['label']}."
+    mood = f"{lead} {rest}"
 
     today = datetime.now(ZoneInfo("Europe/Berlin"))
     subject = f"Santiburi {_date(ci)}–{_date(co)}: aktuell {eur(hotel_total)} fürs Hotel"
@@ -136,72 +147,80 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     t += [f"  - {c}" for c in combo]
     t += ["", mood, ""]
     if flight:
-        t.append(f"Flug (gebucht): {eur(flight, 2)} · Gesamt Flug + Hotel: {eur(grand)}")
+        t.append(f"Flug (gebucht): {eur(flight, 2)} · Flug + Hotel zusammen: {eur(grand)}")
     if top:
-        t += ["", "Top-Anbieter heute:"] + [f"  {i}. {x['name']}: {eur(x['price'])}"
-                                            for i, x in enumerate(top, 1)]
-    if hotel.get("deep_link"):
-        t += ["", "Zum Angebot (Link im Dashboard oder in der HTML-Ansicht dieser Mail)."]
+        t += ["", "Die besten Anbieter heute:"] + [
+            f"  {i}. {x['name']}: {eur(x['price'])}" for i, x in enumerate(top, 1)]
+    if link:
+        t += ["", "Zum Angebot: Link in der HTML-Ansicht dieser Mail oder im Dashboard."]
     text = "\n".join(t)
 
     # --- HTML ---
-    def row(i, x):
-        link = (f'<a href="{escape(x["url"])}" style="color:#0f766e;text-decoration:none">'
-                f'{escape(x["name"])}</a>') if x["url"] else escape(x["name"])
-        return (f'<tr><td style="padding:8px 0;border-top:1px solid #eef0f2;color:#6b7280;width:24px">{i}</td>'
-                f'<td style="padding:8px 0;border-top:1px solid #eef0f2">{link}</td>'
-                f'<td style="padding:8px 0;border-top:1px solid #eef0f2;text-align:right;font-weight:600">'
-                f'{eur(x["price"])}</td></tr>')
+    if day is not None and day < -1:
+        bg, fg, icon = "#E3F4E8", "#1E6B3A", "↗"
+    elif day is not None and day > 1:
+        bg, fg, icon = "#FDE8E8", "#B3261E", "↗"
+    else:
+        bg, fg, icon = "#F1F1EE", "#555555", "•"
+    banner = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+              f'<td style="background:{bg};color:{fg};border-radius:10px;padding:11px 14px;font:14px/1.45 {SANS};'
+              f'text-align:center">{icon}&nbsp; <b>{escape(lead)}</b> {escape(rest)}</td></tr></table>')
 
-    combo_html = "".join(f'<li style="margin:4px 0">{escape(c)}</li>' for c in combo)
-    top_html = "".join(row(i, x) for i, x in enumerate(top, 1))
-    stats = []
-    if low:
-        stats.append(f"Tiefstwert bisher: <b>{eur(low)}</b>")
-    if high:
-        stats.append(f"Höchstwert: <b>{eur(high)}</b>")
-    if trend.get("avg"):
-        stats.append(f"Ø der letzten Checks: <b>{eur(trend['avg'])}</b>")
-    cta = (f'<a href="{escape(hotel["deep_link"])}" style="display:inline-block;background:#0f766e;'
-           f'color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600">'
-           f'Zum Angebot</a>') if hotel.get("deep_link") else ""
-    flight_html = (f'<p style="margin:0;color:#374151">✈️ Flug (gebucht): <b>{eur(flight, 2)}</b> · '
-                   f'Flug + Hotel zusammen: <b>{eur(grand)}</b></p>') if flight else ""
+    img = ('<img src="cid:header" width="600" alt="Santiburi Koh Samui" '
+           'style="display:block;width:100%;max-width:600px;height:auto;border:0">')
+    if link:
+        img = f'<a href="{escape(link)}">{img}</a>'
 
-    html = f"""<!doctype html><html><body style="margin:0;background:#f3f4f6;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111827">
-<div style="max-width:560px;margin:0 auto;padding:24px 16px">
-  <div style="background:linear-gradient(135deg,#0f766e,#0e7490);border-radius:16px 16px 0 0;padding:26px 28px;color:#fff">
-    <div style="font-size:13px;opacity:.85">Guten Morgen · {today:%d.%m.%Y}</div>
-    <div style="font-size:21px;font-weight:700;margin-top:4px">Santiburi Koh Samui</div>
-    <div style="font-size:14px;opacity:.9;margin-top:2px">{_date(ci)} – {_date(co)} 2027 · {persons} Personen · {nights} Nächte</div>
-  </div>
-  <div style="background:#fff;padding:28px;border-radius:0 0 16px 16px">
-    <div style="font-size:13px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em">Günstigster Tarif aktuell</div>
-    <div style="font-size:40px;font-weight:800;line-height:1.15;margin:4px 0">{eur(hotel_total)}</div>
-    <div style="color:#374151">≈ <b>{eur(pp)}</b> pro Person · <b>{eur(pn)}</b> pro Person und Nacht<br>
-    <span style="color:#6b7280;font-size:13px">inkl. Steuern und Gebühren</span></div>
-    <p style="margin:18px 0 6px;padding:12px 14px;background:#f0fdfa;border-radius:10px;color:#115e59">{escape(mood)}</p>
-    <div style="margin-top:18px;font-weight:600">So setzt sich der Preis zusammen</div>
-    <ul style="margin:8px 0 0;padding-left:20px;color:#374151">{combo_html}</ul>
-    <div style="margin:22px 0">{cta}</div>
-    {flight_html}
-    <div style="margin-top:22px;font-weight:600">Die besten Anbieter heute</div>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:6px">{top_html}</table>
-    <p style="margin:20px 0 0;font-size:13px;color:#6b7280">{' · '.join(stats)}</p>
-  </div>
-  <p style="text-align:center;font-size:12px;color:#9ca3af;margin-top:14px">Urlaub-Tracker · täglich 9 Uhr · Preise ohne Gewähr</p>
-</div></body></html>"""
+    combo_html = "".join(
+        f'<div style="font:14px/1.6 {SANS};color:#222222">{escape(c)}</div>' for c in combo)
+    button = (f'<a href="{escape(link)}" style="display:block;background:{GREEN};color:#FFFFFF;border-radius:10px;'
+              f'padding:15px 20px;font:bold 17px {SANS};text-align:center;text-decoration:none">Zum Angebot</a>'
+              ) if link else ""
+    flight_html = (f'<div style="padding:12px 0 14px;font:12px/1.5 {SANS};color:#555555;text-align:center;'
+                   f'border-bottom:1px solid #E3E3DE">Flug (gebucht): {eur(flight, 2)} · '
+                   f'Flug + Hotel zusammen: {eur(grand)}</div>') if flight else ""
+
+    def prov_row(x: dict) -> str:
+        name = (f'<a href="{escape(x["url"])}" style="color:#222222;text-decoration:none">{escape(x["name"])}</a>'
+                if x["url"] else escape(x["name"]))
+        return (f'<tr><td style="padding:4px 0;font:14px {SANS};color:#222222">{name}</td>'
+                f'<td align="right" style="padding:4px 0;font:bold 14px {SANS};color:{GREEN}">{eur(x["price"])}</td></tr>')
+
+    top_html = "".join(prov_row(x) for x in top)
+
+    html = f"""<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
+<body style="margin:0;padding:0;background:#E6E2D8">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E6E2D8"><tr><td align="center" style="padding:16px 8px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#FFFFFF">
+{_tr(f'Guten Morgen · {today:%d.%m.%Y}', f"background:{GREEN};color:{GOLD};font:12px {SANS};letter-spacing:.06em;text-align:center;padding:11px")}
+{_tr(img, "padding:0;line-height:0")}
+{_tr(f'{_date(ci)} – {_date(co)} {co[:4]} · {persons} Personen · {nights} Nächte',
+     f"background:{CREAM};padding:13px 16px;font:14px {SANS};color:#222222;text-align:center")}
+<tr><td style="padding:22px 28px 0;text-align:center">
+  <div style="font:bold 46px/1.1 {SERIF};color:{GREEN}">{eur(hotel_total)}</div>
+  <div style="font:15px/1.5 {SANS};color:#222222;padding-top:4px">Günstigster Tarif aktuell</div>
+  <div style="font:11px/1.5 {SANS};color:#666666;padding:2px 0 14px">≈ {eur(pp)} pro Person · {eur(pn)} pro Person und Nacht · inkl. Steuern und Gebühren</div>
+  {banner}
+  <div style="font:bold 16px {SANS};color:#222222;padding:22px 0 6px">So setzt sich der Preis zusammen</div>
+  {combo_html}
+  <div style="padding:18px 0 4px">{button}</div>
+  {flight_html}
+  <div style="font:bold 16px {SANS};color:#222222;padding:16px 0 8px">Die besten Anbieter heute</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:0 6px">{top_html}</table>
+</td></tr>
+<tr><td style="padding:18px 0 0"><div style="height:2px;background:{GOLD};opacity:.7;line-height:2px;font-size:0">&nbsp;</div></td></tr>
+{_tr('Urlaub-Tracker · täglich 9 Uhr · Preise ohne Gewähr', f"background:{GREEN};color:#E9DFC4;font:12px {SANS};text-align:center;padding:14px")}
+</table></td></tr></table></body></html>"""
     return subject, html, text
 
 
 def send_daily_digest(session, cfg: Config, sec: Secrets) -> bool:
-    from .queries import latest_run
-
     if latest_run(session) is None:
         log.info("Digest uebersprungen: noch keine Messung")
         return False
     subject, html, text = build_digest(session, cfg)
-    return send_email(sec, subject, text, html=html)
+    return send_email(sec, subject, text, html=html, inline_images={"header": HEADER_IMAGE})
 
 
 if __name__ == "__main__":

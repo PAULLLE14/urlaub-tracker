@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import smtplib
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -29,14 +31,22 @@ _CATEGORY_LABEL = {
 }
 
 
-def send_email(sec: Secrets, subject: str, body: str, html: str | None = None) -> bool:
+def send_email(sec: Secrets, subject: str, body: str, html: str | None = None,
+               inline_images: dict | None = None) -> bool:
     if not (sec.smtp_host and sec.alert_email_to):
         log.warning("E-Mail nicht konfiguriert (SMTP_HOST/ALERT_EMAIL_TO leer)")
         return False
     if html:
-        msg = MIMEMultipart("alternative")
-        msg.attach(MIMEText(body, "plain", "utf-8"))
-        msg.attach(MIMEText(html, "html", "utf-8"))
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(body, "plain", "utf-8"))
+        alt.attach(MIMEText(html, "html", "utf-8"))
+        msg = MIMEMultipart("related")   # HTML + eingebettete Bilder (cid:)
+        msg.attach(alt)
+        for cid, path in (inline_images or {}).items():
+            img = MIMEImage(Path(path).read_bytes(), _subtype="jpeg")
+            img.add_header("Content-ID", f"<{cid}>")
+            img.add_header("Content-Disposition", "inline", filename=Path(path).name)
+            msg.attach(img)
     else:
         msg = MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
