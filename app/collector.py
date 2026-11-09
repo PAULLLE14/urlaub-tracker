@@ -146,6 +146,7 @@ def run_check(trigger: str = "manual") -> dict:
     booked = cfg.trip.booked_flight
     if booked:
         flights = [_booked_offer(cfg)]
+        constraint_summary = {"total": 1, "kept": 1, "excluded": 0, "reasons": {}}
         health["flights"] = {"ok": True, "count": 1,
                              "note": "Flug bereits gebucht - Flugsuche uebersprungen"}
     else:

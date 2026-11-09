@@ -155,3 +155,40 @@ def test_parse_rows_falls_back_when_no_room_matches_hint():
     )
     rows = _parse_rows(text, room_hint="Grand Reserve Villa")
     assert sorted(r["price"] for r in rows) == [2200.0, 2350.0]
+
+
+def test_parse_rows_new_layout_single_line_smily_and_cheapest_room_not_an_outlier():
+    # Live-Fund 09.11.26: CHECK24 schreibt "25,04 € als Smily Punkte sammeln" jetzt
+    # in EINER Zeile (Parser fand 0 Angebote), und die Liste enthaelt viele
+    # Zimmerkategorien - die guenstigste Garten-Villa (2.504) darf wegen der
+    # teuren Strandvillen (~10.000) nicht als Ausreisser verworfen werden.
+    def block(price, room):
+        return (f"2 Erwachsene\n2 Erwachsene\n{price} €\n"
+                f"{float(price.replace('.', '')) / 100:.2f} € als Smily Punkte sammeln\n"
+                "Nicht kostenlos stornierbar\nOnline-Zahlung\n"
+                "Details zum Angebot von Booking.com\n"
+                f"Zimmer: {room}\nKann nicht mit anderen Angeboten kombiniert werden\n")
+
+    text = "".join([
+        block("2.504", "Deluxe Garten-Villa"), block("3.426", "Deluxe Garten-Villa"),
+        block("3.855", "Deluxe Garten-Villa"),
+        block("8.700", "Deluxe Villa am Strand"), block("9.837", "Deluxe Villa am Strand"),
+        block("10.876", "Deluxe Villa am Strand"),
+    ])
+    rows = _parse_rows(text)
+    assert len(rows) == 6
+    assert min(r["price"] for r in rows) == 2504.0
+
+
+def test_parse_rows_ignores_cards_for_other_occupancy():
+    # Live-Fund 09.11.26: die Seite fuer 3 Erwachsene zeigt auch 2-Erwachsenen-
+    # Karten (2.504); die duerfen nicht als Preis fuer 3 Personen zaehlen.
+    def block(adults, price, room):
+        return (f"{adults} Erwachsene\n{adults} Erwachsene\n{price} €\n"
+                "25,04 € als Smily Punkte sammeln\nNicht kostenlos stornierbar\n"
+                f"Details zum Angebot von Booking.com\nZimmer: {room}\n")
+
+    text = block(2, "2.504", "Deluxe Garten-Villa") + block(3, "3.426", "Deluxe Garten-Villa")
+    assert [r["price"] for r in _parse_rows(text, "", adults=3)] == [3426.0]
+    assert [r["price"] for r in _parse_rows(text, "", adults=2)] == [2504.0]
+    assert len(_parse_rows(text)) == 2          # ohne Angabe: unveraendert

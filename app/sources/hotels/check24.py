@@ -41,7 +41,7 @@ SOURCE = "check24"
 
 BASE = "https://hotel.check24.de"
 _ROW = re.compile(
-    r"([\d][\d.,]*)\s*€\s*\n[\d.,]+\s*€ als Smily\s*\nPunkte sammeln\n(.*?)"
+    r"([\d][\d.,]*)\s*€\s*\n[\d.,]+\s*€ als Smily\s*Punkte sammeln\s*\n(.*?)"
     r"Details zum Angebot von ([^\n]{1,40})\n(?:Zimmer:\s*([^\n]{1,80}))?",
     re.S,
 )
@@ -84,11 +84,21 @@ def _refundable(block: str) -> bool | None:
     return None
 
 
-def _parse_rows(text: str, room_hint: str = "") -> list[dict]:
+# Vor jedem Preis steht die Belegung der Karte ("3 Erwachsene" ggf. doppelt). Seit
+# dem neuen Layout (09.11.26) zeigt die Seite fuer 3 Erwachsene AUCH Karten fuer 2
+# Erwachsene - die duerfen nicht als 3er-Preis zaehlen.
+_ADULTS_BEFORE = re.compile(r"(\d+)\s*Erwachsene[^\n]*\n(?:\d+\s*Erwachsene[^\n]*\n)?\s*$")
+
+
+def _parse_rows(text: str, room_hint: str = "", adults: int | None = None) -> list[dict]:
     out = []
     for m in _ROW.finditer(text):
         price = parse_money(m.group(1))
         if not price:
+            continue
+        ma = _ADULTS_BEFORE.search(text[max(0, m.start(1) - 80):m.start(1)])
+        row_adults = int(ma.group(1)) if ma else None
+        if adults is not None and row_adults is not None and row_adults != adults:
             continue
         out.append({
             "price": price,
@@ -164,23 +174,37 @@ def _drop_price_outliers(rows: list[dict]) -> list[dict]:
     NICHT einfach der 2.-guenstigste genommen - falls ALLE Zeilen so ein
     Ausreisser waeren, bleibt die Liste leer und die Suche zaehlt als
     "kein Preis lesbar" statt einen falschen Wert zu liefern."""
-    if len(rows) < 3:
-        return rows
-    prices = sorted(r["price"] for r in rows)
-    mid = len(prices) // 2
-    median = prices[mid] if len(prices) % 2 else (prices[mid - 1] + prices[mid]) / 2
-    threshold = median * 0.4
-    kept = [r for r in rows if r["price"] >= threshold]
-    dropped = len(rows) - len(kept)
+    # 09.11.26: Das neue CHECK24-Layout listet viele Zimmerkategorien (Garten-
+    # Villa 2.504 bis Strandvilla 12.000) - ein Median ueber ALLE Zeilen hielt
+    # die echte guenstigste Garten-Villa fuer einen "Ausreisser". Deshalb je
+    # Zimmerkategorie vergleichen (ohne Zimmernamen: alle zusammen wie bisher).
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(r["room"].strip().lower(), []).append(r)
+    kept: list[dict] = []
+    dropped_prices: list[float] = []
+    for group in groups.values():
+        if len(group) < 3:
+            kept += group
+            continue
+        prices = sorted(r["price"] for r in group)
+        mid = len(prices) // 2
+        median = prices[mid] if len(prices) % 2 else (prices[mid - 1] + prices[mid]) / 2
+        threshold = median * 0.4
+        for r in group:
+            if r["price"] >= threshold:
+                kept.append(r)
+            else:
+                dropped_prices.append(r["price"])
+    dropped = len(dropped_prices)
     if dropped:
         log.warning("%s: %d von %d Angeboten als Preis-Ausreisser verworfen "
-                   "(< 40%% des Median %.0f) - z.B. %s",
-                   SOURCE, dropped, len(rows), median,
-                   [r["price"] for r in rows if r["price"] < threshold][:5])
+                   "(< 40%% des Medians der eigenen Zimmerkategorie) - z.B. %s",
+                   SOURCE, dropped, len(rows), dropped_prices[:5])
     return kept or rows  # nie eine leere Liste zurueckgeben, wenn ALLE "Ausreisser" waeren
 
 
-async def _search_one(cfg: Config, url: str, room_hint: str = "") -> list[dict]:
+async def _search_one(cfg: Config, url: str, room_hint: str = "", adults: int | None = None) -> list[dict]:
     async with browser_page(cfg) as page:
         await goto(page, url)
         await page.wait_for_timeout(1200)
@@ -206,7 +230,7 @@ async def _search_one(cfg: Config, url: str, room_hint: str = "") -> list[dict]:
         body = ""
         with contextlib.suppress(Exception):
             body = await page.inner_text("body", timeout=6000)
-        rows = _parse_rows(body, room_hint)
+        rows = _parse_rows(body, room_hint, adults)
         if not rows and cfg.sources.scraper.screenshot_on_error:
             await save_screenshot(page, SOURCE)
         return rows
@@ -246,7 +270,7 @@ async def fetch(cfg: Config) -> HotelOffer:
     for i, size in enumerate(sizes):
         url = _url(slug_id, checkin, checkout, size)
         try:
-            rows = await _search_one(cfg, url, t.hotel.room_type_hint)
+            rows = await _search_one(cfg, url, t.hotel.room_type_hint, size)
         except Exception as exc:  # noqa: BLE001
             log.warning("%s: 1 Zimmer/%d Erw. fehlgeschlagen: %s", SOURCE, size, exc)
             per_size[str(size)] = {"url": url, "error": f"{type(exc).__name__}: {exc}"}
