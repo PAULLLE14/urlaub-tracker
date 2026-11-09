@@ -35,3 +35,14 @@ def test_digest_describes_price_and_combination(monkeypatch, tmp_path):
     assert "8.962 €" in subject and "15. Mai" in subject
     assert "2 × 3er-Zimmer bei A" in text and "1 × 2er-Zimmer bei B" in text
     assert "1.120 €" in html and "<html" in html
+
+
+def test_price_alert_mail_uses_same_design(monkeypatch, tmp_path):
+    test_digest_describes_price_and_combination(monkeypatch, tmp_path)
+    cfg = get_config()
+    s = db.get_session()
+    subject, html, text = build_digest(s, cfg, alert={"price": 8420.0, "limit": 8500.0})
+    s.close()
+    assert "Preisalarm" in subject and "8.420 €" in subject
+    assert "80 € unter deiner Schwelle von 8.500 €" in html
+    assert "Preisalarm · " in html and "Guten Morgen" not in html

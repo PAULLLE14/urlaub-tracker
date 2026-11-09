@@ -81,13 +81,14 @@ def _tr(inner: str, style: str = "") -> str:
     return f'<tr><td style="{style}">{inner}</td></tr>'
 
 
-def build_digest(session, cfg: Config) -> tuple[str, str, str]:
-    """Liefert (Betreff, HTML, Klartext)."""
+def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, str, str]:
+    """Liefert (Betreff, HTML, Klartext). Mit ``alert={'price':..,'limit':..}`` entsteht
+    stattdessen die Preisalarm-Mail im selben Design."""
     s = summary_payload(session, cfg)
     verdict = s.get("verdict") or {}
     hotel = verdict.get("hotel") or {}
     totals = s.get("totals") or {}
-    hotel_total = totals.get("hotel_total")
+    hotel_total = alert["price"] if alert else totals.get("hotel_total")
     persons = cfg.trip.persons
     nights = cfg.trip.nights
     ci = hotel.get("checkin") or cfg.trip.hotel_checkin.isoformat()
@@ -133,15 +134,23 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
         rest += " Das ist der bisher niedrigste Preis seit Messbeginn!"
     elif trend.get("label"):
         rest += f" Einordnung: {trend['label'].replace('guenstig', 'günstig')}."
+    if alert:
+        lead = "Preisalarm:"
+        rest = (f"Der Hotelpreis liegt {eur(alert['limit'] - alert['price'])} unter deiner "
+                f"Schwelle von {eur(alert['limit'])}.")
     mood = f"{lead} {rest}"
 
     today = datetime.now(ZoneInfo("Europe/Berlin"))
     subject = f"Santiburi {_date(ci)}–{_date(co)}: aktuell {eur(hotel_total)} fürs Hotel"
     if day is not None and abs(day) > 1:
         subject += f" ({'−' if day < 0 else '+'}{eur(abs(day))})"
+    if alert:
+        subject = (f"Preisalarm: Santiburi jetzt {eur(hotel_total)} fürs Hotel "
+                   f"(unter {eur(alert['limit'])})")
+    greeting = "Preisalarm" if alert else "Guten Morgen"
 
     # --- Klartext ---
-    t = [f"Guten Morgen! Stand {today:%d.%m.%Y}.", "",
+    t = [f"{greeting}! Stand {today:%d.%m.%Y}.", "",
          f"Günstigste Hotel-Kombination für {persons} Personen, {nights} Nächte:",
          f"  {eur(hotel_total)}  (≈ {eur(pp)} pro Person, {eur(pn)} pro Person und Nacht)"]
     t += [f"  - {c}" for c in combo]
@@ -158,7 +167,7 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     text = "\n".join(t)
 
     # --- HTML ---
-    if day is not None and day < -1:
+    if alert or (day is not None and day < -1):
         bg, fg, icon = "#E3F4E8", "#1E6B3A", "↗"
     elif day is not None and day > 1:
         bg, fg, icon = "#FDE8E8", "#B3261E", "↗"
@@ -200,7 +209,7 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
 <body style="margin:0;padding:0;background:#E6E2D8">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#E6E2D8"><tr><td align="center" style="padding:16px 8px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#FFFFFF">
-{_tr(f'Guten Morgen · {today:%d.%m.%Y}', f"background:{GREEN};color:{GOLD};font:12px {SANS};letter-spacing:.06em;text-align:center;padding:11px")}
+{_tr(f'{greeting} · {today:%d.%m.%Y}', f"background:{GREEN};color:{GOLD};font:12px {SANS};letter-spacing:.06em;text-align:center;padding:11px")}
 {_tr(img, "padding:0;line-height:0")}
 {_tr(f'{_date(ci)} – {_date(co)} {co[:4]} · {persons} Personen · {nights} Nächte',
      f"background:{CREAM};padding:13px 16px;font:14px {SANS};color:#222222;text-align:center")}
@@ -217,7 +226,7 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:0 6px">{top_html}</table>
 </td></tr>
 <tr><td style="padding:18px 0 0"><div style="height:2px;background:{GOLD};opacity:.7;line-height:2px;font-size:0">&nbsp;</div></td></tr>
-{_tr('Urlaub-Tracker · täglich 9 Uhr · Preise ohne Gewähr', f"background:{GREEN};color:#E9DFC4;font:12px {SANS};text-align:center;padding:14px")}
+{_tr('Urlaub-Tracker · ' + ('Preisalarm' if alert else 'täglich 9 Uhr') + ' · Preise ohne Gewähr', f"background:{GREEN};color:#E9DFC4;font:12px {SANS};text-align:center;padding:14px")}
 </table></td></tr></table></body></html>"""
     return subject, html, text
 
@@ -227,6 +236,12 @@ def send_daily_digest(session, cfg: Config, sec: Secrets) -> bool:
         log.info("Digest uebersprungen: noch keine Messung")
         return False
     subject, html, text = build_digest(session, cfg)
+    return send_email(sec, subject, text, html=html, inline_images={"header": HEADER_IMAGE})
+
+
+def send_price_alert(session, cfg: Config, sec: Secrets, price: float, limit: float) -> bool:
+    """Preisalarm als Mail im Design der Tagesmail."""
+    subject, html, text = build_digest(session, cfg, alert={"price": price, "limit": limit})
     return send_email(sec, subject, text, html=html, inline_images={"header": HEADER_IMAGE})
 
 
@@ -246,3 +261,4 @@ if __name__ == "__main__":
         print(subj)
         print()
         print(txt)
+

@@ -25,7 +25,7 @@ log = get_logger("notify")
 
 _CATEGORY_LABEL = {
     "flight_total": "Flug (Hin+Rueck, 8 Pax)",
-    "hotel_total": "Hotel (3 Villen x 14 Naechte)",
+    "hotel_total": "Hotel (8 Pax, guenstigster Tarif)",
     "separate_total": "Einzelbuchung (Flug + Hotel)",
     "package_total": "Pauschalreise",
 }
@@ -134,8 +134,18 @@ def maybe_alert(session, cfg: Config, sec: Secrets, snapshot_values: dict,
         )
 
         channels = []
-        if "email" in cfg.alerts.channels and _send_email(sec, title, body):
-            channels.append("email")
+        if "email" in cfg.alerts.channels:
+            sent = False
+            if category == "hotel_total":   # schoenes HTML, bei Fehler Klartext
+                try:
+                    from .digest import send_price_alert
+                    sent = send_price_alert(session, cfg, sec, current, limit)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("HTML-Alarm fehlgeschlagen, sende Klartext: %s", exc)
+            if not sent:
+                sent = _send_email(sec, title, body)
+            if sent:
+                channels.append("email")
         if "ntfy" in cfg.alerts.channels and _send_ntfy(sec, title, body):
             channels.append("ntfy")
 
