@@ -1,9 +1,9 @@
 """REST-API fuers Dashboard."""
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Header, HTTPException, Query
 
-from . import live_progress, queries, scheduler
+from . import live_progress, queries, scheduler, sync
 from .config import get_config, get_secrets, reload
 from .database import get_session
 from .logging_setup import get_logger
@@ -24,7 +24,9 @@ def _session():
 def status():
     s = get_session()
     try:
-        return queries.status_payload(s, get_config(), scheduler.info())
+        return queries.status_payload(
+            s, get_config(),
+            sync.remote_scheduler_info() if sync.mode() == "receiver" else scheduler.info())
     finally:
         s.close()
 
@@ -34,6 +36,9 @@ def live_progress_status():
     # Nutzer-Fund 16.09.26: rein ephemerer Fortschritts-Kanal fuer den
     # AKTUELL laufenden Check (siehe live_progress.py Docstring) - keine
     # DB-Abfrage, kein Ersatz fuer /api/summary nach Abschluss des Laufs.
+    if sync.mode() == "receiver":
+        remote = sync.remote_progress()
+        return remote or dict(live_progress.snapshot(), running=False)
     return live_progress.snapshot()
 
 
@@ -132,5 +137,33 @@ def check_run(background: BackgroundTasks,
     sec = get_secrets()
     if sec.trigger_token and x_trigger_token != sec.trigger_token:
         raise HTTPException(status_code=401, detail="ungueltiges Trigger-Token")
+    if sync.mode() == "receiver":
+        sync.request_check()   # der Worker holt den Wunsch beim naechsten Poll ab
+        return {"started": True, "note": "Check beim Homeserver angefordert (startet in <= 15 s)"}
     scheduler.trigger_async()
     return {"started": True, "note": "Check laeuft im Hintergrund, /api/status zeigt Fortschritt"}
+
+
+# --- Worker -> Dashboard (siehe sync.py) ---------------------------------
+def _require_sync(token: str | None) -> None:
+    if sync.mode() != "receiver":
+        raise HTTPException(status_code=404, detail="Sync-Empfang nicht aktiv")
+    if not sync.token_ok(token):
+        raise HTTPException(status_code=401, detail="ungueltiges Sync-Token")
+
+
+@router.post("/worker/ingest")
+def worker_ingest(payload: dict = Body(...), x_sync_token: str | None = Header(None)):
+    _require_sync(x_sync_token)
+    s = get_session()
+    try:
+        new_id = sync.import_run(s, payload)
+    finally:
+        s.close()
+    return {"imported": new_id is not None, "run_id": new_id}
+
+
+@router.post("/worker/poll")
+def worker_poll(payload: dict = Body(default={}), x_sync_token: str | None = Header(None)):
+    _require_sync(x_sync_token)
+    return {"requested": sync.receive_poll(payload.get("progress"), payload.get("scheduler"))}

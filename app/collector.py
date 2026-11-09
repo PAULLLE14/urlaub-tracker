@@ -289,6 +289,11 @@ def run_check(trigger: str = "manual") -> dict:
 
     session.close()
     live_progress.finish()
+    try:
+        from . import sync
+        sync.push_run(run.id)   # nur im Worker-Modus aktiv
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Sync an Dashboard fehlgeschlagen: %s", exc)
     log.info("=== CheckRun #%s fertig: status=%s ===", run.id, run.status)
     return {
         "run_id": run.id,

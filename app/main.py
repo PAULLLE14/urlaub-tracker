@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import scheduler
+from . import scheduler, sync
 from .api import router as api_router
 from .config import get_config
 from .database import init_db
@@ -30,6 +30,7 @@ async def lifespan(app: FastAPI):
     cfg = get_config()
     log.info("Urlaub-Tracker startet - Reise: %s", cfg.trip.label)
     scheduler.start()
+    sync.start()
     try:
         yield
     finally:

@@ -390,6 +390,9 @@ class Secrets(BaseModel):
     ntfy_token: str | None = None
     trigger_token: str | None = None
     flights_proxy: str | None = None
+    # Worker->Dashboard-Sync (siehe sync.py)
+    sync_token: str | None = None
+    sync_push_url: str | None = None
 
     @classmethod
     def from_env(cls) -> "Secrets":
@@ -409,6 +412,8 @@ class Secrets(BaseModel):
             ntfy_token=g("NTFY_TOKEN") or None,
             trigger_token=g("TRIGGER_TOKEN") or None,
             flights_proxy=g("FLIGHTS_PROXY") or None,
+            sync_token=g("SYNC_TOKEN") or None,
+            sync_push_url=g("SYNC_PUSH_URL") or None,
         )
 
 
