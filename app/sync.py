@@ -178,6 +178,19 @@ def start() -> None:
 
 
 # --- Empfaenger-Seite ------------------------------------------------------
+def alert_for_run(session, run_id: int) -> list[str]:
+    """Preisalarm fuer einen frisch importierten Lauf (Mail geht vom Empfaenger aus)."""
+    from .config import get_config
+    from .notify import maybe_alert
+
+    snap = session.scalar(select(BestSnapshot).where(BestSnapshot.run_id == run_id))
+    if snap is None:
+        return []
+    values = {"flight_total": snap.flight_total, "hotel_total": snap.hotel_total,
+              "separate_total": snap.separate_total, "package_total": snap.package_total}
+    return maybe_alert(session, get_config(), get_secrets(), values, snap.verdict or {})
+
+
 def receive_poll(progress: dict | None, sched: dict | None) -> bool:
     with _lock:
         _remote.update(progress=progress, scheduler=sched, seen=time.time())

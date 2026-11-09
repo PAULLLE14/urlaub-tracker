@@ -51,10 +51,14 @@ def start() -> None:
     global _scheduler
     cfg = get_config()
     from . import sync
-    if sync.mode() == "receiver":
-        log.info("Scheduler aus: Suche laeuft auf dem Worker (Sync-Empfaenger)")
-        return
-    if not cfg.schedule.enabled:
+    mode = sync.mode()
+    search = mode != "receiver" and cfg.schedule.enabled   # Empfaenger sucht nie selbst
+    # Tagesmail: nur dort, wo auch SMTP konfiguriert ist - nicht auf dem Worker.
+    digest = (mode != "worker" and cfg.alerts.enabled and cfg.alerts.daily_digest.enabled
+              and "email" in cfg.alerts.channels)
+    if mode == "receiver":
+        log.info("Keine eigene Suche: laeuft auf dem Worker (Sync-Empfaenger)")
+    if not search and not digest:
         log.info("Scheduler deaktiviert (schedule.enabled=false)")
         return
     if _scheduler:
@@ -70,21 +74,23 @@ def start() -> None:
     # Fix: den Parameter bei run_on_start=false einfach WEGLASSEN, dann
     # berechnet APScheduler den naechsten Lauf normal aus dem Interval-Trigger.
     kwargs = {"next_run_time": datetime.now(timezone.utc)} if cfg.schedule.run_on_start else {}
-    _scheduler.add_job(
-        _job, IntervalTrigger(hours=cfg.schedule.every_hours),
-        id=_JOB_ID, jitter=cfg.schedule.jitter_seconds,
-        max_instances=1, coalesce=True, **kwargs,
-    )
+    if search:
+        _scheduler.add_job(
+            _job, IntervalTrigger(hours=cfg.schedule.every_hours),
+            id=_JOB_ID, jitter=cfg.schedule.jitter_seconds,
+            max_instances=1, coalesce=True, **kwargs,
+        )
     dg = cfg.alerts.daily_digest
-    if cfg.alerts.enabled and dg.enabled and "email" in cfg.alerts.channels:
+    if digest:
         _scheduler.add_job(
             _digest_job, CronTrigger(hour=dg.hour, minute=dg.minute, timezone=dg.timezone),
             id="daily_digest", max_instances=1, coalesce=True, misfire_grace_time=3600,
         )
         log.info("Tagesmail aktiv: taeglich %02d:%02d (%s)", dg.hour, dg.minute, dg.timezone)
     _scheduler.start()
-    log.info("Scheduler gestartet: alle %.1f h (jitter %ds)",
-             cfg.schedule.every_hours, cfg.schedule.jitter_seconds)
+    if search:
+        log.info("Scheduler gestartet: alle %.1f h (jitter %ds)",
+                 cfg.schedule.every_hours, cfg.schedule.jitter_seconds)
 
 
 def shutdown() -> None:

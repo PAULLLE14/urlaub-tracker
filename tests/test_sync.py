@@ -81,3 +81,21 @@ def test_ingest_endpoint_needs_token_and_receiver_mode(monkeypatch, tmp_path):
     # Ohne SYNC_TOKEN ist der Empfang aus
     monkeypatch.setattr(sync, "get_secrets", lambda: Secrets())
     assert client.post("/api/worker/ingest", json=payload).status_code == 404
+
+
+def test_receiver_checks_alerts_after_import(monkeypatch, tmp_path):
+    import app.notify as notify
+
+    run_id = _make_run(monkeypatch, tmp_path)
+    s = db.get_session()
+    payload = sync.export_run(s, run_id)
+    s.close()
+    _fresh_db(monkeypatch, tmp_path / "receiver.db")
+    seen = {}
+    monkeypatch.setattr(notify, "maybe_alert",
+                        lambda session, cfg, sec, values, verdict: seen.update(values=values) or ["ALERT"])
+    s = db.get_session()
+    new_id = sync.import_run(s, payload)
+    assert sync.alert_for_run(s, new_id) == ["ALERT"]
+    s.close()
+    assert seen["values"]["hotel_total"] == 9000.0

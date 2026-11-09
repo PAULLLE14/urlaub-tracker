@@ -158,9 +158,15 @@ def worker_ingest(payload: dict = Body(...), x_sync_token: str | None = Header(N
     s = get_session()
     try:
         new_id = sync.import_run(s, payload)
+        alerts = []
+        if new_id is not None:
+            try:
+                alerts = sync.alert_for_run(s, new_id)
+            except Exception as exc:  # noqa: BLE001  (Alarm darf den Import nie kippen)
+                log.warning("Alarmpruefung nach Import fehlgeschlagen: %s", exc)
     finally:
         s.close()
-    return {"imported": new_id is not None, "run_id": new_id}
+    return {"imported": new_id is not None, "run_id": new_id, "alerts": alerts}
 
 
 @router.post("/worker/poll")

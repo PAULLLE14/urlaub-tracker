@@ -285,7 +285,10 @@ def run_check(trigger: str = "manual") -> dict:
         "separate_total": verdict.separate_total,
         "package_total": verdict.package_total,
     }
-    alerts = maybe_alert(session, cfg, sec, snapshot_values, verdict.as_dict())
+    from . import sync
+    # Im Worker-Betrieb alarmiert der Empfaenger (Hetzner) nach dem Eintreffen des Laufs.
+    alerts = [] if sync.mode() == "worker" else maybe_alert(
+        session, cfg, sec, snapshot_values, verdict.as_dict())
 
     session.close()
     live_progress.finish()
