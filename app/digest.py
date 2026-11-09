@@ -47,6 +47,8 @@ def _top_providers(session, run_id: int | None, limit: int = 5) -> list[dict]:
     rows = session.scalars(select(HotelOfferRow).where(HotelOfferRow.run_id == run_id))
     best: dict[str, HotelOfferRow] = {}
     for r in rows:
+        if r.source.startswith("Mix:"):
+            continue   # steht schon als Kombination oben
         if not r.ok or not r.price_total or r.is_reference or (r.raw or {}).get("estimate"):
             continue
         price = (r.raw or {}).get("price_total_incl_fees_estimate") or r.price_total
@@ -136,10 +138,10 @@ def build_digest(session, cfg: Config) -> tuple[str, str, str]:
     if flight:
         t.append(f"Flug (gebucht): {eur(flight, 2)} · Gesamt Flug + Hotel: {eur(grand)}")
     if top:
-        t += ["", "Top-Anbieter heute:"] + [f"  {i}. {x['name']}: {eur(x['price'])}  {x['url']}"
+        t += ["", "Top-Anbieter heute:"] + [f"  {i}. {x['name']}: {eur(x['price'])}"
                                             for i, x in enumerate(top, 1)]
     if hotel.get("deep_link"):
-        t += ["", f"Zum Angebot: {hotel['deep_link']}"]
+        t += ["", "Zum Angebot (Link im Dashboard oder in der HTML-Ansicht dieser Mail)."]
     text = "\n".join(t)
 
     # --- HTML ---
