@@ -41,6 +41,9 @@ function employeeDiscountNote(provider) {
 
 const CAT_LABELS = {
   hotel_total: "Hotel (günstigster Tarif)",
+  separate_total: "Flug + Hotel",
+  flight_total: "Flug",
+  package_total: "Pauschalreise",
 };
 const CAT_COLORS = {
   flight_total: "#e2793d",
@@ -469,7 +472,7 @@ const histUi = { days: 30, completeOnly: true, cats: null, data: null };
 
 function histCats(h) {
   // Flug gebucht: nur Hotel (und optional Flug + Hotel) - Flug/Pauschal sind konstant bzw. leer.
-  return h.booked_flight ? ["hotel_total", "separate_total"] : Object.keys(CAT_LABELS);
+  return h.booked_flight ? ["hotel_total", "separate_total"] : ["flight_total", "hotel_total", "separate_total", "package_total"];
 }
 
 function renderHistory() {
