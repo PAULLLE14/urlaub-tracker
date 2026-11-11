@@ -99,8 +99,16 @@ def complete_run_ids(session, limit: int = 40) -> tuple[list[CheckRun], set[int]
         select(CheckRun).where(CheckRun.status.in_(("ok", "partial")))
         .order_by(desc(CheckRun.started_at)).limit(limit)))
     quality = {r.id: _run_quality(session, r.id) for r in runs}
-    best = max(quality.values(), default=0)
-    return runs, {i for i, q in quality.items() if best and q >= _COMPLETE_SHARE * best}
+    # Vergleich nur mit Laeufen aus den umliegenden 24 h: frueher (Hetzner-IP) lieferte
+    # Google durchgehend wenige Anbieter - das ist dort "normal", nicht "unvollstaendig".
+    when = {r.id: (r.started_at if r.started_at.tzinfo else r.started_at.replace(tzinfo=timezone.utc))
+            for r in runs}
+    good: set[int] = set()
+    for r in runs:
+        near = [quality[o.id] for o in runs if abs((when[o.id] - when[r.id]).total_seconds()) <= 86400]
+        if quality[r.id] >= _COMPLETE_SHARE * max(near):
+            good.add(r.id)
+    return runs, good
 
 
 def _tr(inner: str, style: str = "") -> str:
