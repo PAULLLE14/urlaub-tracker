@@ -46,3 +46,36 @@ def test_price_alert_mail_uses_same_design(monkeypatch, tmp_path):
     assert "Preisalarm" in subject and "8.420 €" in subject
     assert "80 € unter deiner Schwelle von 8.500 €" in html
     assert "Preisalarm · " in html and "Guten Morgen" not in html
+
+
+def test_digest_skips_degraded_latest_run(monkeypatch, tmp_path):
+    from datetime import datetime, timedelta
+
+    from app.models import BestSnapshot, CheckRun, HotelOfferRow
+
+    monkeypatch.setattr(db, "_url", lambda: f"sqlite:///{(tmp_path / 'q.db').as_posix()}")
+    monkeypatch.setattr(db, "_engine", None)
+    monkeypatch.setattr(db, "_Session", None)
+    db.init_db()
+    s = db.get_session()
+    t0 = datetime(2026, 11, 10, 8, 0)
+
+    def make(i, providers, total):
+        r = CheckRun(started_at=t0 + timedelta(hours=6 * i), status="ok")
+        s.add(r)
+        s.flush()
+        for n in range(providers):
+            s.add(HotelOfferRow(run_id=r.id, source=f"P{n}", ok=True, price_total=total + n))
+        s.add(BestSnapshot(run_id=r.id, hotel_total=total, flight_total=7183.36,
+                           separate_total=7183.36 + total, created_at=r.started_at,
+                           verdict={"hotel": {"source": "P0", "checkin": "2027-05-15",
+                                              "checkout": "2027-05-28"}}))
+        return r
+
+    make(0, 20, 9000.0)      # vollstaendig
+    make(1, 9, 9788.0)       # gedrosselt - darf die Mail nicht bestimmen
+    s.commit()
+    subject, html, text = build_digest(s, get_config())
+    s.close()
+    assert "9.000 €" in subject and "9.788" not in html
+    assert "Preisstand: 10.11. 09:00 Uhr" in text      # 08:00 UTC = 09:00 Berlin

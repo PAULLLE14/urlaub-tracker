@@ -7,19 +7,19 @@ auf den bereits gespeicherten Daten und damit gut testbar. Layout: Vorlage
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 
 from .config import Config, Secrets
 from .logging_setup import get_logger
-from .logic.trends import history_series
-from .models import HotelOfferRow
+from .logic.trends import classify, history_series
+from .models import BestSnapshot, CheckRun, HotelOfferRow
 from .notify import send_email
-from .queries import latest_run, summary_payload
+from .queries import latest_run
 
 log = get_logger("digest")
 
@@ -77,6 +77,32 @@ def _change_since(series_t: list[str], series_v: list[float | None], hours: floa
     return None if not older else round(now_v - older[-1], 2)
 
 
+_COMPLETE_SHARE = 0.7   # Lauf zaehlt als vollstaendig ab 70 % der besten Anbieterzahl
+
+
+def _run_quality(session, run_id: int) -> int:
+    """Anzahl verschiedener Anbieter mit echtem Preis in diesem Lauf (ohne Mix/Referenzen)."""
+    names = set()
+    for r in session.scalars(select(HotelOfferRow).where(HotelOfferRow.run_id == run_id)):
+        if r.ok and r.price_total and not r.is_reference and not r.source.startswith("Mix:"):
+            names.add(r.source)
+    return len(names)
+
+
+def complete_run_ids(session, limit: int = 40) -> tuple[list[CheckRun], set[int]]:
+    """(letzte Laeufe, neueste zuerst; IDs der vollstaendigen Laeufe).
+
+    Google liefert je nach Abruf mal ~20, mal nur ~10 Anbieter, und gelegentlich
+    fehlt CHECK24 ganz. Solche Laeufe zeigen zu hohe Preise (09.11.26: Tagesmail mit
+    9.788 EUR statt ~9.000 EUR) und duerfen die Mail nicht bestimmen."""
+    runs = list(session.scalars(
+        select(CheckRun).where(CheckRun.status.in_(("ok", "partial")))
+        .order_by(desc(CheckRun.started_at)).limit(limit)))
+    quality = {r.id: _run_quality(session, r.id) for r in runs}
+    best = max(quality.values(), default=0)
+    return runs, {i for i, q in quality.items() if best and q >= _COMPLETE_SHARE * best}
+
+
 def _tr(inner: str, style: str = "") -> str:
     return f'<tr><td style="{style}">{inner}</td></tr>'
 
@@ -84,21 +110,36 @@ def _tr(inner: str, style: str = "") -> str:
 def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, str, str]:
     """Liefert (Betreff, HTML, Klartext). Mit ``alert={'price':..,'limit':..}`` entsteht
     stattdessen die Preisalarm-Mail im selben Design."""
-    s = summary_payload(session, cfg)
-    verdict = s.get("verdict") or {}
+    runs, good = complete_run_ids(session)
+    # Alarm: der Lauf, der ihn ausgeloest hat; Tagesmail: neuester vollstaendiger Lauf
+    run = runs[0] if (alert and runs) else next((r for r in runs if r.id in good), runs[0] if runs else None)
+    snap = session.scalar(select(BestSnapshot).where(BestSnapshot.run_id == run.id)) if run else None
+    verdict = (snap.verdict if snap else None) or {}
     hotel = verdict.get("hotel") or {}
-    totals = s.get("totals") or {}
+    totals = {"flight_total": snap.flight_total, "hotel_total": snap.hotel_total,
+              "separate_total": snap.separate_total} if snap else {}
+    s = {"run_id": run.id if run else None}
     hotel_total = alert["price"] if alert else totals.get("hotel_total")
     persons = cfg.trip.persons
     nights = cfg.trip.nights
     ci = hotel.get("checkin") or cfg.trip.hotel_checkin.isoformat()
     co = hotel.get("checkout") or cfg.trip.hotel_checkout.isoformat()
 
+    # Verlauf nur aus vollstaendigen Laeufen bis zum gewaehlten Lauf
+    snap_ids = {x.run_id: x.created_at.isoformat() for x in session.scalars(
+        select(BestSnapshot).where(BestSnapshot.run_id.in_(good)))}
     hist = history_series(session, cfg)
-    values = [v for v in hist["hotel_total"] if v]
+    cut = snap.created_at.isoformat() if snap else ""
+    series = [(t, v) for t, v in zip(hist["t"], hist["hotel_total"])
+              if v and t in snap_ids.values() and t <= cut]
+    values = [v for _, v in series]
     low = min(values) if values else None
-    day = _change_since(hist["t"], hist["hotel_total"], 20)
-    trend = (s.get("trends") or {}).get("hotel_total") or {}
+    day = _change_since([t for t, _ in series], [v for _, v in series], 20)
+    trend = classify(hotel_total, values[:-1][-cfg.trend.window_checks:], cfg) if values else {}
+    stand = ""
+    if run:
+        started = run.started_at if run.started_at.tzinfo else run.started_at.replace(tzinfo=timezone.utc)
+        stand = started.astimezone(ZoneInfo("Europe/Berlin")).strftime("%d.%m. %H:%M Uhr")
 
     # Wie setzt sich der Preis zusammen?
     combo: list[str] = []
@@ -152,7 +193,8 @@ def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, 
     # --- Klartext ---
     t = [f"{greeting}! Stand {today:%d.%m.%Y}.", "",
          f"Günstigste Hotel-Kombination für {persons} Personen, {nights} Nächte:",
-         f"  {eur(hotel_total)}  (≈ {eur(pp)} pro Person, {eur(pn)} pro Person und Nacht)"]
+         f"  {eur(hotel_total)}  (≈ {eur(pp)} pro Person, {eur(pn)} pro Person und Nacht)",
+         f"  Preisstand: {stand}"]
     t += [f"  - {c}" for c in combo]
     t += ["", mood, ""]
     if flight:
@@ -216,7 +258,7 @@ def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, 
 <tr><td style="padding:22px 28px 0;text-align:center">
   <div style="font:bold 46px/1.1 {SERIF};color:{GREEN}">{eur(hotel_total)}</div>
   <div style="font:15px/1.5 {SANS};color:#222222;padding-top:4px">Günstigster Tarif aktuell</div>
-  <div style="font:11px/1.5 {SANS};color:#666666;padding:2px 0 14px">≈ {eur(pp)} pro Person · {eur(pn)} pro Person und Nacht · inkl. Steuern und Gebühren</div>
+  <div style="font:11px/1.5 {SANS};color:#666666;padding:2px 0 14px">≈ {eur(pp)} pro Person · {eur(pn)} pro Person und Nacht · inkl. Steuern und Gebühren<br>Preisstand: {stand}</div>
   {banner}
   <div style="font:bold 16px {SANS};color:#222222;padding:22px 0 6px">So setzt sich der Preis zusammen</div>
   {combo_html}
