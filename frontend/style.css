@@ -282,3 +282,8 @@ footer { text-align: center; color: var(--muted-soft); font-size: 11px; padding:
 }
 td.win { background: var(--coral-soft); font-weight: 600; }
 tr.win td { background: var(--coral-soft); }
+
+.chart-toggles { align-items: center; }
+.chart-range { display: inline-flex; gap: 4px; }
+.chart-range button { background: transparent; color: var(--muted); border: 1px solid var(--border, #2b3a49); border-radius: 6px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.chart-range button.active { color: #fff; border-color: #4aa3ff; background: #4aa3ff33; }

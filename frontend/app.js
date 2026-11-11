@@ -465,31 +465,40 @@ function renderCheapestFlight(f, returnRef) {
 }
 
 /* ---------------- history chart ---------------- */
-async function loadHistory() {
-  if (typeof Chart === "undefined") { console.warn("Chart.js nicht geladen – Verlauf übersprungen"); return; }
-  const h = await api("/api/history");
-  CURRENCY = h.currency || CURRENCY;
-  const labels = h.t.map((s) => new Date(s).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }));
-  state.chartSeries = h;
-  const toggles = $("#chartToggles");
-  toggles.innerHTML = "";
-  const datasets = [];
-  for (const cat of Object.keys(CAT_LABELS)) {
-    const on = cat !== "flight_total" ? true : true;
-    datasets.push({
-      label: CAT_LABELS[cat],
-      data: h[cat],
-      borderColor: CAT_COLORS[cat],
-      backgroundColor: CAT_COLORS[cat] + "22",
-      spanGaps: true,
-      tension: 0.25,
-      pointRadius: 2,
-      hidden: false,
-    });
-    const lab = el("label");
-    lab.innerHTML = `<input type="checkbox" data-cat="${cat}" checked /> <span style="color:${CAT_COLORS[cat]}">●</span> ${CAT_LABELS[cat]}`;
-    toggles.appendChild(lab);
-  }
+const histUi = { days: 30, completeOnly: true, cats: null, data: null };
+
+function histCats(h) {
+  // Flug gebucht: nur Hotel (und optional Flug + Hotel) - Flug/Pauschal sind konstant bzw. leer.
+  return h.booked_flight ? ["hotel_total", "separate_total"] : Object.keys(CAT_LABELS);
+}
+
+function renderHistory() {
+  const h = histUi.data;
+  if (!h) return;
+  const cats = histCats(h);
+  if (!histUi.cats) histUi.cats = new Set(h.booked_flight ? ["hotel_total"] : cats);
+  const cutoff = histUi.days ? Date.now() - histUi.days * 86400000 : 0;
+  const keep = [];
+  h.t.forEach((t, i) => {
+    if (new Date(t).getTime() < cutoff) return;
+    if (histUi.completeOnly && h.complete && h.complete[i] === false) return;
+    keep.push(i);
+  });
+  const labels = keep.map((i) => {
+    const d = new Date(h.t[i]);
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) +
+      (histUi.days && histUi.days <= 7 ? " " + d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "");
+  });
+  const datasets = cats.map((cat) => ({
+    label: CAT_LABELS[cat],
+    data: keep.map((i) => h[cat][i]),
+    borderColor: CAT_COLORS[cat],
+    backgroundColor: CAT_COLORS[cat] + "22",
+    spanGaps: true,
+    tension: 0.25,
+    pointRadius: 2,
+    hidden: !histUi.cats.has(cat),
+  }));
   if (state.chart) state.chart.destroy();
   state.chart = new Chart($("#chart"), {
     type: "line",
@@ -498,7 +507,7 @@ async function loadHistory() {
       responsive: true,
       interaction: { mode: "index", intersect: false },
       scales: {
-        x: { grid: { color: "#2b3a49" }, ticks: { color: "#93a4b3" } },
+        x: { grid: { color: "#2b3a49" }, ticks: { color: "#93a4b3", maxTicksLimit: 12 } },
         y: { grid: { color: "#2b3a49" }, ticks: { color: "#93a4b3", callback: (v) => money(v) } },
       },
       plugins: {
@@ -507,13 +516,62 @@ async function loadHistory() {
       },
     },
   });
-  toggles.querySelectorAll("input").forEach((inp) => {
-    inp.addEventListener("change", () => {
-      const idx = Object.keys(CAT_LABELS).indexOf(inp.dataset.cat);
-      state.chart.setDatasetVisibility(idx, inp.checked);
-      state.chart.update();
+  const info = $("#chartInfo");
+  if (info) {
+    const hidden = h.complete ? h.complete.filter((x) => x === false).length : 0;
+    info.textContent = `${keep.length} Messungen` +
+      (histUi.completeOnly && hidden ? ` (${hidden} unvollständige Läufe ausgeblendet)` : "");
+  }
+}
+
+async function loadHistory() {
+  if (typeof Chart === "undefined") { console.warn("Chart.js nicht geladen – Verlauf übersprungen"); return; }
+  const h = await api("/api/history");
+  CURRENCY = h.currency || CURRENCY;
+  state.chartSeries = h;
+  histUi.data = h;
+  histUi.cats = null;
+  const toggles = $("#chartToggles");
+  toggles.innerHTML = "";
+
+  const range = el("span");
+  range.className = "chart-range";
+  for (const [days, label] of [[7, "7 Tage"], [30, "30 Tage"], [0, "Alles"]]) {
+    const btn = el("button");
+    btn.type = "button";
+    btn.textContent = label;
+    btn.className = days === histUi.days ? "active" : "";
+    btn.addEventListener("click", () => {
+      histUi.days = days;
+      range.querySelectorAll("button").forEach((x) => x.classList.toggle("active", x === btn));
+      renderHistory();
     });
-  });
+    range.appendChild(btn);
+  }
+  toggles.appendChild(range);
+
+  const comp = el("label");
+  comp.title = "Läufe, in denen Google nur einen Teil der Anbieter lieferte, zeigen zu hohe Preise";
+  comp.innerHTML = `<input type="checkbox" id="histComplete" ${histUi.completeOnly ? "checked" : ""} /> nur vollständige Läufe`;
+  comp.querySelector("input").addEventListener("change", (e) => { histUi.completeOnly = e.target.checked; renderHistory(); });
+  toggles.appendChild(comp);
+
+  for (const cat of histCats(h)) {
+    const lab = el("label");
+    const on = h.booked_flight ? cat === "hotel_total" : true;
+    lab.innerHTML = `<input type="checkbox" data-cat="${cat}" ${on ? "checked" : ""} /> <span style="color:${CAT_COLORS[cat]}">●</span> ${CAT_LABELS[cat]}`;
+    lab.querySelector("input").addEventListener("change", (e) => {
+      if (!histUi.cats) histUi.cats = new Set();
+      e.target.checked ? histUi.cats.add(cat) : histUi.cats.delete(cat);
+      renderHistory();
+    });
+    toggles.appendChild(lab);
+  }
+  const info = el("span");
+  info.id = "chartInfo";
+  info.style.marginLeft = "auto";
+  toggles.appendChild(info);
+  renderHistory();
 }
 
 /* ---------------- flights table ---------------- */

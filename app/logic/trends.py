@@ -106,6 +106,7 @@ def history_series(session, cfg: Config, limit: int = 500) -> dict:
     rows = list(reversed(rows))
     return {
         "t": [r.created_at.isoformat() for r in rows],
+        "run": [r.run_id for r in rows],
         "flight_total": [r.flight_total for r in rows],
         "hotel_total": [_hotel_value(session, r, cfg) for r in rows],
         "separate_total": [r.separate_total for r in rows],

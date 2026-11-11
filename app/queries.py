@@ -223,7 +223,14 @@ def _row(session, fid: int | None) -> FlightOfferRow | None:
 
 
 def history_payload(session, cfg: Config) -> dict:
-    return history_series(session, cfg)
+    from .digest import complete_run_ids
+
+    h = history_series(session, cfg)
+    _runs, good = complete_run_ids(session, limit=500)
+    # Google liefert mal ~20, mal ~10 Anbieter: solche Laeufe zeigen zu hohe Preise
+    h["complete"] = [rid in good for rid in h["run"]]
+    h["booked_flight"] = bool(cfg.trip.booked_flight)
+    return h
 
 
 def runs_list(session, limit: int = 30) -> list[dict]:
