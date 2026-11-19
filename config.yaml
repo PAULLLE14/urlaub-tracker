@@ -279,7 +279,7 @@ sources:
 # --- Scheduler ------------------------------------------------------------
 schedule:
   enabled: true
-  every_hours: 6                 # Preis-Check-Intervall
+  every_hours: 4                 # Preis-Check-Intervall
   run_on_start: false            # sofort einmal laufen beim Start?
   jitter_seconds: 300
 
