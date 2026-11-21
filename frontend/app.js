@@ -1046,6 +1046,13 @@ async function refreshAll() {
   showError(errs.length ? "Teilweise nicht geladen — " + errs.join(" · ") : "");
 }
 
+$("#btnGoogle").addEventListener("click", async () => {
+  try {
+    const l = await api("/api/links");
+    window.open(l.google_hotels, "_blank", "noopener");
+  } catch (e) { console.warn("Google-Hotels-Link fehlgeschlagen", e); }
+});
+
 $("#btnCheck").addEventListener("click", async () => {
   const b = $("#btnCheck");
   b.disabled = true; b.textContent = "läuft…";

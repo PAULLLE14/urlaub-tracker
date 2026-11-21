@@ -118,6 +118,17 @@ def runs(limit: int = 30):
         s.close()
 
 
+@router.get("/links")
+def links():
+    """Fertige Google-Hotels-Suche (Santiburi, gebuchter Zeitraum, 2 Personen)."""
+    from .sources.hotels.google_hotels import _url_for
+    from .sources.hotels import hotel_date_combos
+
+    cfg = get_config()
+    checkin, checkout = hotel_date_combos(cfg)[0]
+    return {"google_hotels": _url_for(cfg, checkin, checkout, 2)}
+
+
 @router.get("/config")
 def config_echo():
     cfg = get_config()
