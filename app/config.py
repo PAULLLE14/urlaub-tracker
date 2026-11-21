@@ -342,6 +342,14 @@ class ScheduleCfg(BaseModel):
     every_hours: float = 6
     run_on_start: bool = False
     jitter_seconds: int = 300
+    # Zwischen-Check (nur Google, ~1-2 min): bei auffaelligem Preissturz startet er
+    # sofort einen vollen Lauf zur Bestaetigung. 0 = aus.
+    light_every_minutes: int = 60
+    light_boost_every_minutes: int = 30          # waehrend des Aktionsfensters (Black Friday)
+    light_boost_from: date | None = date(2026, 11, 27)
+    light_boost_until: date | None = date(2026, 12, 1)
+    light_drop_pct: float = 5.0                  # so viel % unter dem letzten vollen Lauf = auffaellig
+    light_full_cooldown_hours: float = 3.0       # nicht oefter als so oft einen vollen Lauf anstossen
 
 
 class TrendCfg(BaseModel):

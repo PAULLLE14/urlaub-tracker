@@ -33,6 +33,43 @@ def _job() -> None:
             log.exception("Geplanter Check fehlgeschlagen: %s", exc)
 
 
+_last_light = 0.0
+_last_full_trigger = 0.0
+
+
+def _light_job() -> None:
+    """Zwischen-Check (siehe collector.light_probe); stoesst bei Auffaelligkeit einen vollen Lauf an."""
+    global _last_light, _last_full_trigger
+    import time
+    from datetime import date as _date
+
+    from .collector import light_probe
+
+    cfg = get_config()
+    sc = cfg.schedule
+    today = _date.today()
+    boost = bool(sc.light_boost_from and sc.light_boost_until
+                 and sc.light_boost_from <= today <= sc.light_boost_until)
+    interval = (sc.light_boost_every_minutes if boost else sc.light_every_minutes) * 60
+    if time.monotonic() - _last_light < interval - 120:
+        return
+    if not _lock.acquire(blocking=False):      # ein voller Lauf ist gerade aktiv
+        return
+    try:
+        _last_light = time.monotonic()
+        result = light_probe()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Zwischen-Check fehlgeschlagen: %s", exc)
+        return
+    finally:
+        _lock.release()
+    cooldown = sc.light_full_cooldown_hours * 3600
+    if result.get("reason") and time.monotonic() - _last_full_trigger > cooldown:
+        _last_full_trigger = time.monotonic()
+        log.info("Voller Lauf zur Bestaetigung angestossen: %s", result["reason"])
+        trigger_async()
+
+
 def _digest_job() -> None:
     from .database import get_session
     from .digest import send_daily_digest
@@ -80,6 +117,13 @@ def start() -> None:
             id=_JOB_ID, jitter=cfg.schedule.jitter_seconds,
             max_instances=1, coalesce=True, **kwargs,
         )
+    if search and cfg.schedule.light_every_minutes > 0:
+        step = min(cfg.schedule.light_every_minutes, cfg.schedule.light_boost_every_minutes) or 30
+        _scheduler.add_job(_light_job, IntervalTrigger(minutes=step), id="light_check",
+                           max_instances=1, coalesce=True, jitter=60)
+        log.info("Zwischen-Check aktiv: alle %d min (Aktionsfenster %s bis %s: alle %d min)",
+                 cfg.schedule.light_every_minutes, cfg.schedule.light_boost_from,
+                 cfg.schedule.light_boost_until, cfg.schedule.light_boost_every_minutes)
     dg = cfg.alerts.daily_digest
     if digest:
         _scheduler.add_job(

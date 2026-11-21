@@ -311,3 +311,53 @@ def run_check(trigger: str = "manual") -> dict:
             "packages_ok": sum(1 for p in packages if p.ok),
         },
     }
+
+
+# --------------------------------------------------------------------------- #
+# Zwischen-Check
+# --------------------------------------------------------------------------- #
+def light_trigger_reason(best: float | None, baseline: float | None, target: float | None,
+                         drop_pct: float) -> str:
+    """Warum ein voller Lauf angestossen werden soll ('' = kein Grund)."""
+    if not best:
+        return ""
+    if target and best < target:
+        return f"unter dem Zielpreis ({best:.0f} < {target:.0f})"
+    if baseline and best <= baseline * (1 - drop_pct / 100.0):
+        return f"{(1 - best / baseline) * 100:.1f} % unter dem letzten vollen Lauf ({best:.0f} statt {baseline:.0f})"
+    return ""
+
+
+def light_probe() -> dict:
+    """Schneller Preis-Check nur ueber Google Hotels (HTTP, kein Browser, nichts wird
+    gespeichert). Liefert den guenstigsten Gesamtpreis und ob ein voller Lauf zur
+    Bestaetigung sinnvoll ist. Der volle Lauf ist die zweite Messung: nur er speichert
+    und alarmiert - so loest ein einzelner Parser-Ausreisser keinen Alarm aus."""
+    from sqlalchemy import select
+
+    from .queries import display_run
+    from .sources.hotels import google_hotels, hotel_date_combos
+
+    cfg = get_config()
+    sec = get_secrets()
+    ci, co = hotel_date_combos(cfg)[0]
+    offers = google_hotels.fetch_providers(cfg, ci, co, proxy=sec.flights_proxy)
+    ok = [o for o in offers if o.ok and o.price_total]
+    best = min(ok, key=lambda o: o.price_total) if ok else None
+
+    baseline = None
+    session = get_session()
+    try:
+        run = display_run(session)
+        snap = session.scalar(select(BestSnapshot).where(BestSnapshot.run_id == run.id)) if run else None
+        baseline = snap.hotel_total if snap else None
+    finally:
+        session.close()
+
+    reason = light_trigger_reason(best.price_total if best else None, baseline,
+                                  cfg.alerts.thresholds.hotel_total, cfg.schedule.light_drop_pct)
+    log.info("Zwischen-Check: bester Google-Preis %s (%d Anbieter), Referenz %s%s",
+             best.price_total if best else None, len(ok), baseline,
+             f" -> AUFFAELLIG: {reason}" if reason else "")
+    return {"best": best.price_total if best else None, "source": best.source if best else None,
+            "providers": len(ok), "baseline": baseline, "reason": reason}
