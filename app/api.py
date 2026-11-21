@@ -155,6 +155,89 @@ def check_run(background: BackgroundTasks,
     return {"started": True, "note": "Check laeuft im Hintergrund, /api/status zeigt Fortschritt"}
 
 
+# --- Browser-Erweiterung -------------------------------------------------
+import hmac as _hmac
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+
+def _ext_auth(token: str | None) -> None:
+    want = get_secrets().ext_token
+    if not (want and token and _hmac.compare_digest(token, want)):
+        raise HTTPException(status_code=401, detail="ungueltiges Token")
+
+
+@router.post("/ext/ingest")
+def ext_ingest(payload: dict = Body(...), x_ext_token: str | None = Header(None)):
+    """Preise aus der persoenlichen Google-Hotels-Ansicht (Browser-Erweiterung)."""
+    from sqlalchemy import select
+
+    from .models import BrowserMeasurement
+
+    _ext_auth(x_ext_token)
+    cfg = get_config()
+    t = cfg.trip
+    adults = int(payload.get("adults") or 0)
+    ci, co = str(payload.get("checkin") or ""), str(payload.get("checkout") or "")
+    if (ci, co) != (t.hotel_checkin.isoformat(), t.hotel_checkout.isoformat()) or adults not in (2, 3):
+        return {"stored": False, "reason": "nicht der gebuchte Zeitraum bzw. keine 2/3 Gaeste"}
+    nights = (t.hotel_checkout - t.hotel_checkin).days
+    providers = []
+    for p in (payload.get("providers") or [])[:80]:
+        try:
+            name, per_night, total = str(p["name"])[:40], float(p["per_night"]), float(p["total"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        # Plausibilitaet: Santiburi, 1 Zimmer, ~13 Naechte
+        if not (30 <= per_night <= 2500) or not (per_night * nights * 0.7 <= total <= per_night * nights * 1.3):
+            continue
+        providers.append({"name": name, "per_night": per_night, "total": total,
+                          "url": str(p.get("url") or "")[:1500]})
+    if not providers:
+        return {"stored": False, "reason": "keine plausiblen Preise"}
+    s = get_session()
+    try:
+        last = s.scalar(select(BrowserMeasurement).where(
+            BrowserMeasurement.adults == adults, BrowserMeasurement.checkin == ci)
+            .order_by(BrowserMeasurement.captured_at.desc()).limit(1))
+        now = _dt.now(_tz.utc)
+        if last and last.providers == providers:
+            last.captured_at = now        # unveraendert: nur Zeitstempel auffrischen
+        else:
+            s.add(BrowserMeasurement(captured_at=now, checkin=ci, checkout=co,
+                                     adults=adults, providers=providers))
+        s.commit()
+    finally:
+        s.close()
+    log.info("Browser-Erweiterung: %d Anbieter fuer %d Gaeste gespeichert", len(providers), adults)
+    return {"stored": True, "providers": len(providers)}
+
+
+@router.get("/ext/latest")
+def ext_latest(max_age_hours: float = 24, x_sync_token: str | None = Header(None)):
+    """Neueste Browser-Messung je Gaestezahl (fuer den Worker)."""
+    from sqlalchemy import select
+
+    from .models import BrowserMeasurement
+
+    if not sync.token_ok(x_sync_token):
+        raise HTTPException(status_code=401, detail="ungueltiges Sync-Token")
+    since = _dt.now(_tz.utc) - _td(hours=max_age_hours)
+    out = []
+    s = get_session()
+    try:
+        for adults in (2, 3):
+            m = s.scalar(select(BrowserMeasurement).where(
+                BrowserMeasurement.adults == adults, BrowserMeasurement.captured_at >= since)
+                .order_by(BrowserMeasurement.captured_at.desc()).limit(1))
+            if m:
+                cap = m.captured_at if m.captured_at.tzinfo else m.captured_at.replace(tzinfo=_tz.utc)
+                out.append({"captured_at": cap.isoformat(), "checkin": m.checkin, "checkout": m.checkout,
+                            "adults": m.adults, "providers": m.providers})
+    finally:
+        s.close()
+    return {"measurements": out}
+
+
 # --- Worker -> Dashboard (siehe sync.py) ---------------------------------
 def _require_sync(token: str | None) -> None:
     if sync.mode() != "receiver":

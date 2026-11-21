@@ -22,7 +22,8 @@ def _comparable(o: HotelOffer) -> float:
     return (o.raw or {}).get("price_total_incl_fees_estimate") or o.price_total or 0.0
 
 
-def cross_mix(cfg: Config, offers: list[HotelOffer], checkin: date, checkout: date) -> HotelOffer | None:
+def cross_mix(cfg: Config, offers: list[HotelOffer], checkin: date, checkout: date,
+              browser: list[dict] | None = None) -> HotelOffer | None:
     """Guenstigster Mix ueber alle Quellen; None, wenn er nicht billiger als jeder
     Einzelanbieter ist."""
     t = cfg.trip
@@ -55,6 +56,19 @@ def cross_mix(cfg: Config, offers: list[HotelOffer], checkin: date, checkout: da
             size = int(key)
             if size in sizes and (size not in best or price < best[size]["price"]):
                 best[size] = {"price": float(price), "label": label, "url": info.get("url", ""),
+                              "per_night": round(price / nights, 2) if nights else None}
+
+    # Preise aus der persoenlichen Browser-Ansicht (Erweiterung): zaehlen als Kandidaten
+    for meas in browser or []:
+        if (meas.get("checkin"), meas.get("checkout")) != (ci, co):
+            continue
+        size = int(meas.get("adults") or 0)
+        if size not in sizes:
+            continue
+        for p in meas.get("providers", []):
+            price = float(p["total"])
+            if size not in best or price < best[size]["price"]:
+                best[size] = {"price": price, "label": f"{p['name']} (Browser)", "url": p.get("url", ""),
                               "per_night": round(price / nights, 2) if nights else None}
 
     choice = cheapest_allocation(allocations, {s: c["price"] for s, c in best.items()})

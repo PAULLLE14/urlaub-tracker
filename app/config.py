@@ -411,6 +411,7 @@ class Secrets(BaseModel):
     # Worker->Dashboard-Sync (siehe sync.py)
     sync_token: str | None = None
     sync_push_url: str | None = None
+    ext_token: str | None = None    # Browser-Erweiterung (nur Preis-Upload)
 
     @classmethod
     def from_env(cls) -> "Secrets":
@@ -432,6 +433,7 @@ class Secrets(BaseModel):
             flights_proxy=g("FLIGHTS_PROXY") or None,
             sync_token=g("SYNC_TOKEN") or None,
             sync_push_url=g("SYNC_PUSH_URL") or None,
+            ext_token=g("EXT_TOKEN") or None,
         )
 
 

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Preis-Helfer",
+  "description": "Meldet Hotelpreise von Google Hotels im Hintergrund an den eigenen Tracker.",
+  "version": "1.0.0",
+  "permissions": [],
+  "host_permissions": ["http://204.168.234.248:8080/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.google.com/travel/*", "https://www.google.de/travel/*"],
+      "js": ["config.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

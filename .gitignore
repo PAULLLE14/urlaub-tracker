@@ -8,3 +8,5 @@ artifacts/
 .pytest_cache/
 node_modules/
 .claude/
+
+extension/config.js

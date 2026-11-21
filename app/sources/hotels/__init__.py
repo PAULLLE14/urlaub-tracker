@@ -99,6 +99,17 @@ async def _collect_playwright(cfg: Config, names: list[str]) -> list[HotelOffer]
     return out
 
 
+def _browser_prices() -> list[dict]:
+    """Preise, die die Browser-Erweiterung zuletzt gemeldet hat (<= 24 h alt)."""
+    try:
+        from ... import sync
+
+        return sync.fetch_browser_prices()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Browser-Preise nicht verfuegbar: %s", exc)
+        return []
+
+
 def collect_hotels(cfg: Config, proxy: str | None = None) -> tuple[list[HotelOffer], dict]:
     hc = cfg.sources.hotels
     offers: list[HotelOffer] = []
@@ -134,7 +145,7 @@ def collect_hotels(cfg: Config, proxy: str | None = None) -> tuple[list[HotelOff
     # 3) Mix ueber alle Quellen (ersetzt den reinen Google-Mix, wenn er guenstiger ist)
     for ci, co in hotel_date_combos(cfg):
         try:
-            mix = crossmix.cross_mix(cfg, offers, ci, co)
+            mix = crossmix.cross_mix(cfg, offers, ci, co, browser=_browser_prices())
         except Exception as exc:  # noqa: BLE001
             log.warning("Quellenuebergreifender Mix fehlgeschlagen: %s", exc)
             mix = None

@@ -151,6 +151,20 @@ def push_run(run_id: int) -> bool:
     return False
 
 
+def fetch_browser_prices(max_age_hours: float = 24) -> list[dict]:
+    """Browser-Messungen vom Empfaenger holen (nur im Worker-Betrieb)."""
+    if mode() != "worker":
+        return []
+    try:
+        r = httpx.get(_url("/api/ext/latest"), params={"max_age_hours": max_age_hours},
+                      headers=_headers(), timeout=20)
+        r.raise_for_status()
+        return r.json().get("measurements", [])
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Browser-Preise nicht abrufbar: %s", exc)
+        return []
+
+
 def _worker_loop() -> None:
     from . import live_progress, scheduler
 

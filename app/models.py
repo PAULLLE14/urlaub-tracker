@@ -184,6 +184,19 @@ class BestSnapshot(Base):
     verdict: Mapped[dict] = mapped_column(JSON, default=dict)  # gefuellte Vergleichslogik
 
 
+class BrowserMeasurement(Base):
+    """Preise, die die Browser-Erweiterung auf Google Hotels gesehen hat (persoenliche Sicht)."""
+
+    __tablename__ = "browser_measurement"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
+    checkin: Mapped[str] = mapped_column(String(10))
+    checkout: Mapped[str] = mapped_column(String(10))
+    adults: Mapped[int] = mapped_column(Integer, index=True)
+    providers: Mapped[list] = mapped_column(JSON, default=list)   # [{name, per_night, total, url}]
+
+
 class AlertLog(Base):
     """Damit nicht bei jedem Check erneut alarmiert wird."""
 
