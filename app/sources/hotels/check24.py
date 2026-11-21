@@ -224,7 +224,22 @@ async def _search_one(cfg: Config, url: str, room_hint: str = "", adults: int | 
                 "document.body.innerText.includes('Leider sind für Ihre Suche')",
                 timeout=25000,
             )
-        await page.wait_for_timeout(1500)
+        # CHECK24 laedt die Anbieter nacheinander nach (Live-Suche). Mit dem ersten
+        # "Details zum Angebot von" ist die Liste noch laengst nicht komplett:
+        # 21.11.26 las der Tracker fuer 3 Erwachsene 4.296 EUR, kurz danach zeigte
+        # die Seite 3.046 EUR. Deshalb warten, bis die Zahl der Angebote ueber
+        # mehrere Messungen hinweg stabil bleibt (max. ~75 s).
+        stable, last = 0, -1
+        for _ in range(25):
+            count = 0
+            with contextlib.suppress(Exception):
+                count = await page.evaluate(
+                    "(document.body.innerText.match(/Details zum Angebot von/g) || []).length")
+            stable = stable + 1 if count == last else 0
+            last = count
+            if count and stable >= 3:
+                break
+            await page.wait_for_timeout(3000)
         with contextlib.suppress(Exception):
             await page.wait_for_load_state("networkidle", timeout=6000)
         body = ""
