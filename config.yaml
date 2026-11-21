@@ -302,7 +302,7 @@ alerts:
   # paar echten Durchlaeufen anhand des Preisverlaufs im Dashboard nachjustieren.
   thresholds:
     flight_total: 8000          # Round-Trip/Multi-City, 8 Pax
-    hotel_total: null           # Preisalarm AUS (zum Einschalten z.B. 9000 eintragen)
+    hotel_total: 8816           # Ziel: Flug + Hotel unter 16.000 EUR (16000 - 7183,36 Flug)
     separate_total: 16000       # Flug + Hotel getrennt gebucht
     package_total: 20000        # guenstigste Pauschalreise (noch keine Daten)
   # Nicht oefter als alle X Stunden dieselbe Kategorie alarmieren.
