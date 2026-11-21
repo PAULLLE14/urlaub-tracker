@@ -14,7 +14,7 @@ from ...config import Config
 from ...logging_setup import get_logger
 from ...offers import HotelOffer
 from ..scraper_base import playwright_available
-from . import booking, check24, expedia, google_hotels, lastminute, santiburi, stayforlong
+from . import booking, check24, crossmix, expedia, google_hotels, lastminute, santiburi, stayforlong
 
 log = get_logger("source.hotels")
 
@@ -130,6 +130,19 @@ def collect_hotels(cfg: Config, proxy: str | None = None) -> tuple[list[HotelOff
                     offers += loop.run_until_complete(_collect_playwright(cfg, pw_names))
                 finally:
                     loop.close()
+
+    # 3) Mix ueber alle Quellen (ersetzt den reinen Google-Mix, wenn er guenstiger ist)
+    for ci, co in hotel_date_combos(cfg):
+        try:
+            mix = crossmix.cross_mix(cfg, offers, ci, co)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Quellenuebergreifender Mix fehlgeschlagen: %s", exc)
+            mix = None
+        if mix:
+            offers = [o for o in offers if not (o.source.startswith("Mix:") and
+                                               (o.raw or {}).get("checkin") == ci.isoformat())]
+            offers.append(mix)
+            log.info("Mix ueber alle Quellen: %s = %.0f", mix.source, mix.price_total)
 
     good = sum(1 for o in offers if o.ok)
     health = {

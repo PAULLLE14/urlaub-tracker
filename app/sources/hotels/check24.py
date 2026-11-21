@@ -298,8 +298,10 @@ async def fetch(cfg: Config) -> HotelOffer:
             refund_prices = [r["price"] for r in rows if r["refundable"]]
             log.info("%s: 1 Zimmer/%d Erw. -> %d Angebote, ab %.0f %s",
                      SOURCE, size, len(rows), cheapest, t.currency)
+            cheapest_row = min(rows, key=lambda r: r["price"])
             per_size[str(size)] = {
                 "url": url, "offers": len(rows), "cheapest": cheapest,
+                "supplier": cheapest_row.get("supplier"), "cheapest_room": cheapest_row.get("room") or None,
                 "cheapest_refundable": min(refund_prices) if refund_prices else None,
             }
         if i < len(sizes) - 1:
