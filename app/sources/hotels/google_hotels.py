@@ -131,11 +131,15 @@ _PROVIDER_ENTRY = re.compile(r'\["([^"\\]{2,40})",(\d+),"(/travel/lodging/clk[^"
 _PRICE_PAIR = re.compile(r'\["([\d.,]+)\s?[€]"\],\["([\d.,]+)\s?[€]"\]')
 
 
-_MAX_ATTEMPTS = 3
-_ENOUGH_2 = 7           # 2er-Zimmer: normal 9-16 Anbieter, unter 7 = gedrosselt
-_ENOUGH_3 = 2           # 3er-Zimmer haben von Haus aus nur 1-3 Anbieter
-_REQUEST_GAP = 8.0      # Sekunden Mindestabstand zwischen Google-Abrufen
-_RETRY_GAP = 25.0
+# 21.11.26: Google liefert je Abruf mal ~20, mal nur ~10 (2er) bzw. 3-4 statt ~14 (3er)
+# Anbieter; die gedrosselten Laeufe zeigten zu hohe Preise. Hypothese: wir fragen zu
+# schnell ab -> deutlich laengere Pausen, bei duennen Antworten mehrfach nachladen
+# (beste Zeile je Anbieter aus allen Versuchen bleibt erhalten).
+_MAX_ATTEMPTS = 4
+_ENOUGH_2 = 16          # 2er-Zimmer: voll sind ~19-24 Anbieter
+_ENOUGH_3 = 9           # 3er-Zimmer: voll sind ~14
+_REQUEST_GAP = 30.0     # Sekunden Mindestabstand zwischen Google-Abrufen
+_RETRY_GAP = 60.0
 _last_request = 0.0
 
 
