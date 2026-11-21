@@ -192,3 +192,23 @@ def test_parse_rows_ignores_cards_for_other_occupancy():
     assert [r["price"] for r in _parse_rows(text, "", adults=3)] == [3426.0]
     assert [r["price"] for r in _parse_rows(text, "", adults=2)] == [2504.0]
     assert len(_parse_rows(text)) == 2          # ohne Angabe: unveraendert
+
+
+def test_blackdeal_card_for_two_adults_is_not_counted_as_three_adult_price():
+    # Lauf 21.11.26: Zwischen "2 Erwachsene" und dem Preis stehen Rabattzeilen
+    # ("339 € sparen", "10% BlackDeal", durchgestrichener Preis) - die Karte fuer
+    # 2 Erwachsene (3.046 €) wurde faelschlich als 3er-Preis gelesen.
+    from app.sources.hotels.check24 import _parse_rows
+
+    text = (
+        "3 Erwachsene\n3 Erwachsene\n3.674 €\n36,74 € als Smily Punkte sammeln\n"
+        "Nicht kostenlos stornierbar\nDetails zum Angebot von Agoda\nZimmer: Deluxe Garten Villa\n"
+        "4 vergleichbare Angebote\nAuswählen\n"
+        "2 Erwachsene\n2 Erwachsene\n339\u00a0€ sparen\n10% BlackDeal\n3.385\u00a0€\n"
+        "3.046\u00a0€\n30,46 € als Smily Punkte sammeln\nNicht kostenlos stornierbar\n"
+        "Details zum Angebot von Stayforlong\nZimmer: Villa Deluxe Zimmer\n"
+    )
+    rows3 = _parse_rows(text, "", 3)
+    assert [r["price"] for r in rows3] == [3674.0]
+    rows2 = _parse_rows(text, "", 2)
+    assert [r["price"] for r in rows2] == [3046.0]

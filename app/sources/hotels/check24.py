@@ -87,7 +87,20 @@ def _refundable(block: str) -> bool | None:
 # Vor jedem Preis steht die Belegung der Karte ("3 Erwachsene" ggf. doppelt). Seit
 # dem neuen Layout (09.11.26) zeigt die Seite fuer 3 Erwachsene AUCH Karten fuer 2
 # Erwachsene - die duerfen nicht als 3er-Preis zaehlen.
-_ADULTS_BEFORE = re.compile(r"(\d+)\s*Erwachsene[^\n]*\n(?:\d+\s*Erwachsene[^\n]*\n)?\s*$")
+_ADULTS_LABEL = re.compile(r"(\d+)\s*Erwachsene")
+
+
+def _card_adults(text: str, price_start: int) -> int | None:
+    """Belegung der Karte: das letzte "N Erwachsene" seit dem Ende der Vorgaengerkarte
+    ("Auswaehlen"). Zwischen Label und Preis koennen Rabattzeilen stehen ("339 EUR
+    sparen", "10% BlackDeal", durchgestrichener Preis) - 21.11.26 wurde deshalb eine
+    2-Personen-Karte (3.046 EUR) als 3er-Preis gelesen."""
+    window = text[max(0, price_start - 300):price_start]
+    cut = window.rfind("Auswählen")
+    if cut != -1:
+        window = window[cut:]
+    labels = _ADULTS_LABEL.findall(window)
+    return int(labels[-1]) if labels else None
 
 
 def _parse_rows(text: str, room_hint: str = "", adults: int | None = None) -> list[dict]:
@@ -96,8 +109,7 @@ def _parse_rows(text: str, room_hint: str = "", adults: int | None = None) -> li
         price = parse_money(m.group(1))
         if not price:
             continue
-        ma = _ADULTS_BEFORE.search(text[max(0, m.start(1) - 80):m.start(1)])
-        row_adults = int(ma.group(1)) if ma else None
+        row_adults = _card_adults(text, m.start(1))
         if adults is not None and row_adults is not None and row_adults != adults:
             continue
         out.append({
