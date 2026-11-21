@@ -23,9 +23,25 @@ def latest_run(session) -> CheckRun | None:
     ).first()
 
 
+def display_run(session) -> CheckRun | None:
+    """Lauf, dessen Daten das Dashboard zeigt: der neueste VOLLSTAENDIGE Lauf der
+    letzten 12 h. Google liefert mal ~20, mal nur ~10 Anbieter; ein solcher
+    duenner Lauf wuerde sonst zu hohe Preise anzeigen (21.11.26: 10.188 statt
+    ~9.200 EUR). Gibt es keinen vollstaendigen, gilt der neueste Lauf."""
+    from datetime import timedelta
+
+    from .digest import complete_run_ids
+
+    runs, good = complete_run_ids(session, limit=12)
+    if not runs:
+        return None
+    cutoff = runs[0].started_at - timedelta(hours=12)
+    return next((r for r in runs if r.id in good and r.started_at >= cutoff), runs[0])
+
+
 def _run_id(session, run: str | int | None) -> int | None:
     if run in (None, "latest", ""):
-        r = latest_run(session)
+        r = display_run(session)
         return r.id if r else None
     return int(run)
 
@@ -190,7 +206,7 @@ def packages_table(session, run: str | int | None = None) -> dict:
 
 
 def summary_payload(session, cfg: Config) -> dict:
-    r = latest_run(session)
+    r = display_run(session)
     snap = None
     if r:
         snap = session.scalars(
