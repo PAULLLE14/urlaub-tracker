@@ -58,6 +58,8 @@
     /* 3D-Buehne */
     .sky { position: absolute; inset: 0; background: linear-gradient(180deg, #cfe3f1 0%, #e9f1f6 55%, #f7f6f2 100%); }
     model-viewer { position: absolute; inset: 0; width: 100%; height: 100%; --poster-color: transparent; background: transparent; }
+    .chapter model-viewer { left: 18%; width: 82%; }
+    @media (max-width: 800px) { .chapter model-viewer { left: 0; width: 100%; top: -8%; } }
     .nomodel { position: absolute; right: var(--pad); bottom: 12vh; z-index: 4; max-width: 300px; font-size: 12.5px; line-height: 1.55; color: var(--muted); border-left: 1px solid var(--ink); padding-left: 14px; display: none; }
     .nomodel b { color: var(--ink); font-weight: 500; display: block; margin-bottom: 4px; }
 
@@ -121,7 +123,7 @@
         <h2>Frankfurt – Koh Samui</h2>
         <p class="lead" id="flug-lead"></p>
         <div class="tabs" id="fleet"></div>
-        <div class="viewer"><model-viewer id="mv-flug" camera-controls touch-action="pan-y" interaction-prompt="none" auto-rotate rotation-per-second="8deg" shadow-intensity="0.7" exposure="1.05" environment-image="neutral" camera-orbit="-50deg 78deg 110%" field-of-view="28deg" alt="3D-Modell"></model-viewer><div class="nomodel" id="nomodel-flug"></div></div>
+        <div class="viewer"><model-viewer id="mv-flug" camera-controls touch-action="pan-y" interaction-prompt="none" auto-rotate rotation-per-second="8deg" shadow-intensity="0.7" exposure="1.05" environment-image="neutral" camera-orbit="-50deg 78deg 84%" field-of-view="28deg" alt="3D-Modell"></model-viewer><div class="nomodel" id="nomodel-flug"></div></div>
         <div class="cap"><span id="plane-cap"></span><span id="plane-credit"></span></div>
         <div class="cols"><div id="legs-out"></div><div id="legs-back"></div></div>
         <div class="sum"><span id="flug-sub"></span><b id="flug-total"></b></div>
@@ -267,7 +269,7 @@
         { img: 'maenam-cove.jpg', pos: 'center 55%', kicker: day(L[3].date), title: 'Heimreise', text: `${L[3].dep_time} Uhr ab ${L[3].dep}, über Bangkok und Doha. Landung in Frankfurt am ${day(L[5].arr_date || L[5].date)} um ${L[5].arr_time} Uhr.` },
       ];
       $('story').innerHTML = ch.map((c, i) => `<article class="chapter"><div class="stage ${c.type ? 'light' : ''}">` + (c.type
-        ? `<div class="sky"></div><model-viewer class="mv" data-t="${c.type}" interaction-prompt="none" shadow-intensity="0.6" exposure="1.05" environment-image="neutral" camera-orbit="-70deg 80deg 105%" field-of-view="26deg" disable-zoom alt="${esc(TYPE_LABEL[c.type])}"></model-viewer><div class="nomodel" id="nm-${i}"></div>`
+        ? `<div class="sky"></div><model-viewer class="mv" data-t="${c.type}" interaction-prompt="none" shadow-intensity="0.6" exposure="1.05" environment-image="neutral" camera-orbit="-70deg 80deg 82%" field-of-view="26deg" disable-zoom alt="${esc(TYPE_LABEL[c.type])}"></model-viewer><div class="nomodel" id="nm-${i}"></div>`
         : `<div class="photo" style="height:100%"><div class="img" style="background-image:url('/img/photos/${c.img}');background-position:${c.pos}"></div><div class="veil"></div><span class="credit" data-file="${c.img}">${credit(c.img)}</span></div>`) +
         `<span class="no" ${c.type ? 'style="color:#0b0b0b"' : ''}>${String(i + 1).padStart(2, '0')} / ${String(ch.length).padStart(2, '0')}</span><div class="copy"><p class="label">${esc(c.kicker)}</p><h2>${esc(c.title)}</h2><p class="t">${esc(c.text)}</p></div></div></article>`).join('');
       document.querySelectorAll('.chapter .mv').forEach((mv) => showModel(mv, mv.nextElementSibling, mv.dataset.t));
@@ -276,7 +278,7 @@
         document.querySelectorAll('.chapter').forEach((el) => {
           const mv = el.querySelector('.mv'), img = el.querySelector('.img'), copy = el.querySelector('.copy');
           if (img) gsap.fromTo(img, { scale: 1.16, yPercent: -3 }, { scale: 1, yPercent: 3, ease: 'none', scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: true } });
-          if (mv) { const o = { th: -70, ph: 82, r: 112 }; gsap.to(o, { th: 70, ph: 70, r: 100, ease: 'none', onUpdate: () => mv.setAttribute('camera-orbit', `${o.th}deg ${o.ph}deg ${o.r}%`), scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: .6 } }); }
+          if (mv) { const o = { th: -70, ph: 82, r: 88 }; gsap.to(o, { th: 70, ph: 70, r: 74, ease: 'none', onUpdate: () => mv.setAttribute('camera-orbit', `${o.th}deg ${o.ph}deg ${o.r}%`), scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: .6 } }); }
           gsap.timeline({ scrollTrigger: { trigger: el, start: 'top 55%', end: 'bottom 45%', scrub: true } }).fromTo(copy, { opacity: 0, y: 50 }, { opacity: 1, y: 0, duration: .3 }).to(copy, { opacity: 1, duration: .4 }).to(copy, { opacity: 0, y: -30, duration: .3 });
         });
         gsap.to('#hero-img', { scale: 1.12, yPercent: 6, ease: 'none', scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: true } });
