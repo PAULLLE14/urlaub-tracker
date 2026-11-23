@@ -34,6 +34,25 @@ class BookedHotel(BaseModel):
     note: str = ""
 
 
+class FlightLeg(BaseModel):
+    """Eine Teilstrecke des gebuchten Flugs (nur Anzeige im Dashboard)."""
+
+    direction: str = "out"               # out | back
+    date: date                           # Abflugdatum (Ortszeit)
+    dep: str
+    dep_time: str
+    arr: str
+    arr_time: str
+    arr_date: date | None = None         # nur wenn abweichend (Nachtflug)
+    flight: str = ""
+    aircraft: str = ""
+    airline: str = ""
+    operated_by: str = ""
+    duration: str = ""
+    cabin: str = "Economy"
+    terminal: str = ""
+
+
 class BookedFlight(BaseModel):
     """Bereits gebuchter Flug (Ticket gekauft): ersetzt die komplette Flugsuche,
     der Tracker konzentriert sich dann auf Hotel/Pauschal. Der Hotelzeitraum
@@ -50,6 +69,9 @@ class BookedFlight(BaseModel):
     return_info: str = ""                # optional, z. B. "USM 18:30 -> FRA 07:15"
     booking_ref: str = ""                # optional
     outbound_time: str = ""              # optional, z. B. "17:15" (Abflug Ortszeit)
+    legs: list[FlightLeg] = []
+    total_out: str = ""                  # Reisezeit Hinflug (Anzeige)
+    total_back: str = ""
     return_time: str = ""
 
 

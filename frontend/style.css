@@ -379,3 +379,22 @@ body.guarantee-mode #guaranteeSection > h2 { display: none; }
 .bar span { background: linear-gradient(90deg, #5fb3a5, var(--teal)); }
 
 .route .city { font-size: 13px; font-weight: 600; color: var(--body); margin-top: -2px; }
+
+/* Flug mit allen Teilstrecken */
+.flyer-cards { grid-template-columns: 1fr !important; }
+.ticket.flight-wide::before, .ticket.flight-wide::after { display: none; }
+.legs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+.legs-title { font-weight: 700; font-size: 14px; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.legs-total { font-size: 11.5px; font-weight: 600; background: var(--teal-soft); color: #1f6b60; border-radius: 999px; padding: 3px 10px; }
+.leg { display: grid; grid-template-columns: 74px 1fr 74px; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px dashed var(--hairline); }
+.leg-t { display: flex; flex-direction: column; line-height: 1.2; }
+.leg-t b { font-family: "Fraunces", Georgia, serif; font-size: 22px; font-weight: 600; }
+.leg-t span { font-size: 11.5px; color: var(--muted); }
+.leg-t.right { text-align: right; align-items: flex-end; }
+.leg-c { display: flex; align-items: center; gap: 8px; }
+.leg-c b { font-size: 14px; letter-spacing: .04em; }
+.leg-line { flex: 1; position: relative; border-top: 2px dashed var(--hairline); height: 0; }
+.leg-line em { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); font-style: normal; background: var(--canvas); padding: 0 4px; font-size: 14px; color: var(--coral); }
+.leg-m { font-size: 11.5px; color: var(--muted); margin-top: 3px; text-align: center; }
+.layover { font-size: 11.5px; color: #1f6b60; background: var(--teal-soft); border-radius: 999px; padding: 3px 10px; margin: 2px 0 2px 84px; display: inline-block; }
+@media (max-width: 900px) { .legs-grid { grid-template-columns: 1fr; } .layover { margin-left: 0; } }

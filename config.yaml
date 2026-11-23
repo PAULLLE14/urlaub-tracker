@@ -94,6 +94,15 @@ trip:
     airlines: ["Qatar Airways"]
     outbound_info: "Flug QR 068"
     outbound_time: "17:15"
+    total_out: "18 h 20 min"        # FRA 14.05. 17:15 -> USM 15.05. 16:35 (Ortszeiten, inkl. Umstiege)
+    total_back: "20 h 25 min"       # USM 28.05. 15:50 -> FRA 29.05. 07:15
+    legs:
+      - {direction: out,  date: "2027-05-14", dep: FRA, dep_time: "17:15", arr: DOH, arr_time: "00:15", arr_date: "2027-05-15", flight: QR068,  aircraft: "Boeing 787-9",    airline: "Qatar Airways", duration: "6 h",      terminal: "Terminal 3"}
+      - {direction: out,  date: "2027-05-15", dep: DOH, dep_time: "02:30", arr: BKK, arr_time: "13:25", flight: QR836,  aircraft: "Airbus A380-800", airline: "Qatar Airways", duration: "6 h 55 min"}
+      - {direction: out,  date: "2027-05-15", dep: BKK, dep_time: "15:30", arr: USM, arr_time: "16:35", flight: QR4367, aircraft: "Airbus A319",     airline: "Qatar Airways", operated_by: "Bangkok Airways", duration: "1 h 5 min"}
+      - {direction: back, date: "2027-05-28", dep: USM, dep_time: "15:50", arr: BKK, arr_time: "17:05", flight: QR4321, aircraft: "Airbus A319",     airline: "Qatar Airways", operated_by: "Bangkok Airways", duration: "1 h 15 min"}
+      - {direction: back, date: "2027-05-28", dep: BKK, dep_time: "20:00", arr: DOH, arr_time: "22:35", flight: QR835,  aircraft: "Airbus A380-800", airline: "Qatar Airways", duration: "6 h 35 min"}
+      - {direction: back, date: "2027-05-29", dep: DOH, dep_time: "01:55", arr: FRA, arr_time: "07:15", flight: QR069,  aircraft: "Boeing 787-9",    airline: "Qatar Airways", duration: "6 h 20 min", terminal: "Terminal 3"}
     note: "Gebucht - fester Preis fuer alle 8 Personen"
 
   # Hotel gebucht (23.11.26) bei Agoda: 3 x Deluxe Garten Villa, 8 Personen, 15.-28.05.2027,

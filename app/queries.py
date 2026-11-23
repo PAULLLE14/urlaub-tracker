@@ -209,6 +209,8 @@ def guarantee_payload(session, cfg: Config) -> dict:
                            "origin": bf.origin, "destination": bf.destination, "airlines": bf.airlines,
                            "outbound_info": bf.outbound_info, "return_info": bf.return_info,
                            "outbound_time": bf.outbound_time, "return_time": bf.return_time,
+                           "legs": [l.model_dump(mode="json") for l in bf.legs],
+                           "total_out": bf.total_out, "total_back": bf.total_back,
                            "booking_ref": bf.booking_ref, "note": bf.note} if bf else None),
         "booked_thb": (bh.price_local if bh else None) or cfg.alerts.booked_hotel_thb, "flight": flight, "persons": cfg.trip.persons,
         "total": round(flight + booked, 2) if (flight and booked) else None,

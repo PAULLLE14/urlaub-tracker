@@ -1047,6 +1047,7 @@ async function loadGuarantee() {
   const days = Math.max(0, Math.ceil((new Date(g.deadline + "T23:59:00") - new Date()) / 86400000));
   const f = g.flight_detail || {};
   const cities = { FRA: "Frankfurt", USM: "Koh Samui", DOH: "Doha", MUC: "München", BKK: "Bangkok" };
+  const legs = f.legs || [];
   const outDay = f.outbound_date ? fmtDay(f.outbound_date) : "";
   const arrIso = f.outbound_date ? new Date(new Date(f.outbound_date + "T12:00:00").getTime() + 86400000).toISOString().slice(0, 10) : "";
   const retDay = f.return_date ? fmtDay(f.return_date) : "";
@@ -1082,28 +1083,35 @@ async function loadGuarantee() {
     <div class="fact"><span class="fi">🌍</span><div><div class="fl">Zeitverschiebung im Mai</div><div class="fv">+5 Stunden</div></div></div>
     <div class="fact"><span class="fi">🛫</span><div><div class="fl">Abflug in</div><div class="fv">${f.outbound_date ? Math.max(0, Math.ceil((new Date(f.outbound_date + "T00:00:00") - new Date()) / 86400000)) + " Tagen" : "–"}</div></div></div>
     <div class="fact"><span class="fi">🌡</span><div><div class="fl">Mai auf Samui (typisch)</div><div class="fv">28–32 °C · Meer 29 °C</div></div></div>
-    <div class="fact"><span class="fi">🌙</span><div><div class="fl">Nachtflug</div><div class="fv">${arrIso ? "Ankunft " + esc(fmtDay(arrIso, { weekday: "short", day: "2-digit", month: "short" })) : "–"}</div></div></div>
+    <div class="fact"><span class="fi">🌙</span><div><div class="fl">Reisezeit hin / zurück</div><div class="fv">${esc(f.total_out || "–")} / ${esc(f.total_back || "–")}</div></div></div>
     <div class="fact"><span class="fi">👥</span><div><div class="fl">Pro Person gesamt</div><div class="fv">${money2(g.per_person)}</div></div></div>
   </div>
 
   <div class="flyer-cards">
-    <article class="ticket">
-      <div class="ticket-head"><span>✈ Flug</span><span class="tag ok">gebucht</span></div>
-      <div class="route">
-        <div class="stop"><div class="code">${esc(f.origin || "ABFLUG")}</div><div class="city">${esc(cities[f.origin] || "")}</div><div class="when">${outDay ? esc(fmtDay(f.outbound_date, { weekday: "short", day: "2-digit", month: "short" })) + (f.outbound_time ? " · " + esc(f.outbound_time) + " Uhr" : "") : ""}</div></div>
-        <div class="line"><span class="plane">✈</span><span class="dur">${flightDays != null ? flightDays + " Tage" : ""}</span></div>
-        <div class="stop right"><div class="code">${esc(f.destination || "USM")}</div><div class="city">${esc(cities[f.destination || "USM"] || "")}</div><div class="when">${arrIso ? "Ankunft " + esc(fmtDay(arrIso, { weekday: "short", day: "2-digit", month: "short" })) : ""}</div></div>
+    <article class="ticket flight-wide">
+      <div class="ticket-head"><span>✈ Flug · Qatar Airways</span><span class="tag ok">gebucht</span></div>
+      <div class="legs-grid">
+        ${["out", "back"].map((dir) => {
+          const ls = legs.filter((l) => l.direction === dir);
+          if (!ls.length) return "";
+          const dayOf = (iso) => fmtDay(iso, { weekday: "short", day: "2-digit", month: "short" });
+          const mins = (d, t) => new Date(d + "T" + t + ":00").getTime() / 60000;
+          const rows = ls.map((l, k) => {
+            const next = ls[k + 1];
+            const gap = next ? mins(next.date, next.dep_time) - mins(l.arr_date || l.date, l.arr_time) : null;
+            const gapTxt = gap != null && gap > 0 ? `<div class="layover">⏱ Umstieg in ${esc(cities[l.arr] || l.arr)} · ${Math.floor(gap / 60)} h ${String(gap % 60).padStart(2, "0")} min</div>` : "";
+            return `<div class="leg">
+              <div class="leg-t"><b>${esc(l.dep_time)}</b><span>${esc(dayOf(l.date))}</span></div>
+              <div class="leg-r"><div class="leg-c"><b>${esc(l.dep)}</b><i class="leg-line"><em>✈</em></i><b>${esc(l.arr)}</b></div>
+                <div class="leg-m">${esc(l.flight)} · ${esc(l.duration)} · ${esc(l.aircraft)}${l.operated_by ? " · " + esc(l.operated_by) : ""}${l.terminal ? " · " + esc(l.terminal) : ""}</div></div>
+              <div class="leg-t right"><b>${esc(l.arr_time)}</b><span>${esc(dayOf(l.arr_date || l.date))}</span></div>
+            </div>${gapTxt}`;
+          }).join("");
+          const total = dir === "out" ? f.total_out : f.total_back;
+          return `<div class="legs-col"><div class="legs-title">${dir === "out" ? "Hinflug" : "Rückflug"} · ${esc(cities[ls[0].dep] || ls[0].dep)} → ${esc(cities[ls[ls.length - 1].arr] || ls[ls.length - 1].arr)}${total ? `<span class="legs-total">${esc(total)} unterwegs</span>` : ""}</div>${rows}</div>`;
+        }).join("")}
       </div>
-      <div class="ticket-rows">
-        <div><span>Hinflug</span><b>${outDay ? esc(outDay) : "–"}</b></div>
-        ${f.outbound_info ? `<div><span>Details</span><b>${esc(f.outbound_info)}</b></div>` : ""}
-        <div><span>Rückflug</span><b>${retDay ? esc(retDay) : "–"}</b></div>
-        ${f.return_info ? `<div><span>Details</span><b>${esc(f.return_info)}</b></div>` : ""}
-        ${(f.airlines || []).length ? `<div><span>Airline</span><b>${esc(f.airlines.join(", "))}</b></div>` : ""}
-        ${f.booking_ref ? `<div><span>Buchungscode</span><b>${esc(f.booking_ref)}</b></div>` : ""}
-        <div><span>Passagiere</span><b>${g.persons}</b></div>
-      </div>
-      <div class="ticket-foot"><span>${money2(g.flight / g.persons)} p. P.</span><b>${money2(g.flight)}</b></div>
+      <div class="ticket-foot"><span>${g.persons} Passagiere · Economy · ${money2(g.flight / g.persons)} p. P.</span><b>${money2(g.flight)}</b></div>
     </article>
 
     <article class="ticket hotel">
