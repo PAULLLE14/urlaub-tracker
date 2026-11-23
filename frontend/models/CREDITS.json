@@ -8,18 +8,18 @@
   },
   {
     "file": "qatar-b787.glb",
-    "name": "Low Poly Boeing 787 Dreamliner (Fahrwerk entfernt, Leitwerk in Qatar-Farbe eingefaerbt)",
-    "author": "Mauro3D",
+    "name": "Boeing 787-9 (Qantas Centenary)",
+    "author": "mudkipz321",
     "license": "CC BY 4.0",
-    "url": "https://sketchfab.com/3d-models/low-poly-boeing-787-dreamliner-50baa323fabd49a6b861096cb88e5c25",
-    "note": "Lackierung (Qatar Airways) in Blender ergaenzt"
+    "url": "https://sketchfab.com/3d-models/none-4b061566dc5a4495bff5e8c7e911ec4e",
+    "note": "in Blender verkleinert, Qatar-Lackierung neu gemalt"
   },
   {
     "file": "bangkok-a319.glb",
-    "name": "Airbus A319",
-    "author": "OUTPISTON",
-    "license": "CC BY-NC-SA 4.0 (nur nicht-kommerziell)",
-    "url": "https://sketchfab.com/3d-models/airbus-a319-536400f2043a4809a0b6913cd4df2617",
-    "note": "Lackierung (Bangkok Airways) in der Textur ergaenzt"
+    "name": "Airbus A319-100",
+    "author": "DCP",
+    "license": "CC BY 4.0",
+    "url": "https://sketchfab.com/3d-models/none-edd33a7bc5724a8190fcb8d1ee528885",
+    "note": "Fahrwerk entfernt, Bangkok-Airways-Lackierung neu gemalt"
   }
 ]
