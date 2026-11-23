@@ -39,6 +39,12 @@
     @keyframes dashFlow { to { stroke-dashoffset: -24; } }
     .route-dash { stroke-dasharray: 6 6; animation: dashFlow 1.4s linear infinite; }
     .cloud { position: absolute; width: 360px; height: 120px; border-radius: 999px; background: radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.95), rgba(255,255,255,.55) 55%, rgba(255,255,255,0) 72%); filter: blur(3px); opacity: .85; will-change: transform; }
+    .chapter { position: relative; height: 190vh; }
+    .chapter-stage { position: sticky; top: 0; height: 100vh; overflow: hidden; background: #cfe6ee; }
+    .ch-img { position: absolute; inset: -4%; background-size: cover; background-repeat: no-repeat; will-change: transform; }
+    .ch-veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,40,40,.28) 0%, rgba(10,40,40,.04) 38%, rgba(10,40,40,.5) 100%); }
+    .ch-card { position: absolute; left: max(1rem, 5vw); bottom: 11vh; width: min(540px, 90vw); }
+    .ch-credit { position: absolute; right: 1rem; bottom: .6rem; font-size: 10.5px; color: rgba(255,255,255,.85); text-shadow: 0 1px 4px rgba(0,0,0,.6); }
     .btn-line { border: 1px solid #E6E1D6; background: #fff; border-radius: 10px; padding: 6px 12px; font-weight: 600; font-size: 12px; }
     .btn-line:hover { border-color: #0F5C5C; color: #0F5C5C; }
   </style>
@@ -120,6 +126,8 @@
       <div id="kpis" class="mt-8 pointer-events-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3.5"></div>
     </section>
 
+    <section id="story" class="relative"></section>
+
     <!-- FLUG -->
     <section id="flight-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div class="pointer-events-auto editorial-card p-6 sm:p-8 mb-6">
@@ -188,6 +196,8 @@
       </div>
     </section>
 
+    <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8"><div id="villa-gallery"></div></section>
+
     <!-- GARANTIE -->
     <section id="guarantee-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div class="pointer-events-auto grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -239,6 +249,11 @@
       <p class="pointer-events-auto inline-block px-5 py-2.5 rounded-full bg-shell/85 border border-hairline text-[11px] sm:text-xs text-muted">
         Urlaub-Tracker · Preise von Google Hotels, ohne Anmeldung abgerufen · Dein Konto kann andere Preise sehen · <a class="underline" href="/dashboard">Alle Tracker-Daten</a>
       </p>
+      <details class="pointer-events-auto mt-3 inline-block text-left text-[11px] text-muted bg-shell/85 border border-hairline rounded-xl px-4 py-2">
+        <summary class="cursor-pointer font-semibold">Bildnachweise</summary>
+        <p class="mt-1">Alle Fotos außer den Villa-Bildern stammen von Wikimedia Commons (freie Lizenzen):</p>
+        <ul id="credits-list" class="mt-1 list-disc pl-4 space-y-0.5"></ul>
+      </details>
     </footer>
   </main>
 
@@ -398,6 +413,7 @@
       const dl = Math.max(0, Math.ceil((new Date(g.deadline + 'T23:59:00') - now) / 86400000));
       $('g-note').innerHTML = `Antrag möglich bis <strong class="text-ink">${esc(fmtDay(g.deadline, { day: '2-digit', month: 'long', year: 'numeric' }))}, 23:59 Uhr</strong> (Ortszeit Hotel) – noch <strong class="text-lagoon">${dl} Tage</strong>. Mail-Alarm ab <strong class="text-ink">${eur(g.threshold)}</strong> (160 € unter deinem Preis).`;
 
+      buildStory(g); buildVillaGallery();
       $('g-table-wrap').innerHTML = g.offers.length ? `<h3 class="text-xs font-semibold uppercase tracking-wider text-muted mb-4">ANERKANNTE PLATTFORMEN · AKTUELLER STAND</h3>
         <table class="w-full text-left border-collapse min-w-[540px] tabular-nums"><thead><tr class="border-b border-hairline text-[11px] font-semibold uppercase tracking-wider text-muted"><th class="py-3 pr-4">PLATTFORM</th><th class="py-3 px-4">GESAMT (3 ZIMMER)</th><th class="py-3 px-4">P. P./NACHT</th><th class="py-3 pl-4 text-right">ABSTAND ZU DEINEM PREIS</th></tr></thead><tbody class="divide-y divide-hairline text-sm">` +
         g.offers.slice(0, 8).map((o) => `<tr class="hover:bg-alabaster/60 transition-colors"><td class="py-3.5 pr-4 font-semibold text-ink">${o.url ? `<a href="${esc(o.url)}" target="_blank" rel="noopener" class="hover:text-lagoon">${esc(o.source)}</a>` : esc(o.source)}</td><td class="py-3.5 px-4 font-bold text-ink">${eur(o.total)}</td><td class="py-3.5 px-4 text-muted">${eur(o.per_person_night)}</td><td class="py-3.5 pl-4 text-right font-semibold ${o.total < g.booked ? 'text-lagoon' : 'text-muted'}">${o.total - g.booked >= 0 ? '+' : '−'}${eur(Math.abs(o.total - g.booked))}</td></tr>`).join('') + '</tbody></table>'
@@ -447,12 +463,12 @@
         <line x1="150" y1="84" x2="560" y2="84" stroke="#64748B" stroke-width="5" stroke-dasharray="2 9" stroke-linecap="round" opacity=".7"/>
       </svg>`;
     }
+    const PLANE_PHOTO = { B787: '/img/photos/qatar-b787.jpg', A380: '/img/photos/qatar-a380.jpg', A319: '/img/photos/bangkok-a319.jpg' };
     function planeInto(layer, type) {
-      const base = '/img/planes/' + PLANE_FILES[type];
       layer.innerHTML = '';
-      const img = new Image(); img.alt = TYPE_LABEL[type]; img.className = 'w-full h-auto'; img.style.filter = 'drop-shadow(0 18px 18px rgba(26,32,44,.2))';
-      img.onerror = () => { if (!img.dataset.png) { img.dataset.png = '1'; img.src = base + '.png'; } else { layer.innerHTML = planeSvg(type); } };
-      img.src = base + '.webp';
+      const img = new Image(); img.alt = TYPE_LABEL[type]; img.className = 'w-full rounded-2xl shadow-2xl object-cover'; img.style.aspectRatio = '16/10';
+      img.onerror = () => { layer.innerHTML = planeSvg(type); };
+      img.src = PLANE_PHOTO[type];
       layer.appendChild(img);
     }
     function setPlane(type) {
@@ -579,6 +595,65 @@
         renderer.render(scene, cam);
       })();
     })();
+
+    // =========================================================================
+    // KAPITEL: lange Scroll-Geschichte mit Fotos (Wikimedia Commons, Quellen unten im Footer)
+    // =========================================================================
+    let CREDITS = {};
+    fetch('/img/photos/CREDITS.json').then((r) => (r.ok ? r.json() : [])).then((a) => { a.forEach((c) => { CREDITS[c.file] = c; }); fillCredits(); }).catch(() => {});
+    function creditLine(file) { const c = CREDITS[file]; return c ? `Foto: ${esc(c.artist.replace(/ from .*/, ''))} · ${esc(c.license)}` : ''; }
+    function fillCredits() {
+      const box = $('credits-list'); if (!box) return;
+      box.innerHTML = Object.values(CREDITS).map((c) => `<li><a class="underline" href="${esc(c.source)}" target="_blank" rel="noopener">${esc(c.title)}</a> · ${esc(c.artist.replace(/ from .*/, ''))} · <a class="underline" href="${esc(c.license_url)}" target="_blank" rel="noopener">${esc(c.license)}</a></li>`).join('');
+      document.querySelectorAll('.ch-credit[data-file]').forEach((n) => { n.textContent = creditLine(n.dataset.file); });
+    }
+    let storyBuilt = false;
+    function buildStory(g) {
+      if (storyBuilt) return; storyBuilt = true;
+      const L = (g.flight_detail || {}).legs || []; if (L.length < 6) return;
+      const day = (iso, long) => fmtDay(iso, long ? { weekday: 'long', day: 'numeric', month: 'long' } : { weekday: 'short', day: '2-digit', month: 'short' });
+      const chapters = [
+        { img: 'qatar-b787.jpg', pos: 'center 38%', kicker: `Kapitel 1 · ${day(L[0].date, 1)}`, title: 'Abflug in Frankfurt',
+          text: `${L[0].dep_time} Uhr, ${L[0].flight} ab ${L[0].dep}${L[0].terminal ? ' (' + L[0].terminal + ')' : ''}. Mit der ${L[0].aircraft} geht es durch die Nacht nach Doha, Landung um ${L[0].arr_time} Uhr.` },
+        { img: 'qatar-a380.jpg', pos: 'center 45%', kicker: `Kapitel 2 · ${day(L[1].date, 1)}`, title: 'Doha, mitten in der Nacht',
+          text: `Zwei ruhige Stunden Umstieg, dann ${L[1].flight} um ${L[1].dep_time} Uhr im ${L[1].aircraft} weiter nach Bangkok (${L[1].duration}, Landung ${L[1].arr_time} Uhr).` },
+        { img: 'bangkok-a319.jpg', pos: 'center 45%', kicker: `Kapitel 3 · ${day(L[2].date, 1)}`, title: 'Bangkok, der Inselhüpfer',
+          text: `Kurz durchatmen, dann ${L[2].flight} um ${L[2].dep_time} Uhr im ${L[2].aircraft} von ${L[2].operated_by || 'Bangkok Airways'}. In ${L[2].duration} landet ihr auf Koh Samui.` },
+        { img: 'maenam-bay.jpg', pos: 'center 55%', kicker: `Kapitel 4 · ${day(L[2].arr_date || L[2].date, 1)}`, title: 'Ankunft auf Koh Samui',
+          text: `${L[2].arr_time} Uhr Ortszeit, fünf Stunden vor Deutschland. Der Transfer führt in die Bucht von Mae Nam, ins Santiburi, Check-in am Samstag.` },
+        { img: 'maenam-beach.jpg', pos: 'center 60%', kicker: `Kapitel 5 · ${g.nights} Nächte`, title: 'Maenam Beach',
+          text: `Acht Personen, drei Gartenvillen, Frühstück inklusive. Im Mai typisch 28–32 °C und Meer um 29 °C, ruhige Bucht und lange Strandspaziergänge.` },
+        { img: 'maenam-cove.jpg', pos: 'center 55%', kicker: `Kapitel 6 · ${day(L[3].date, 1)}`, title: 'Heimreise',
+          text: `${L[3].dep_time} Uhr ab ${L[3].dep}, über Bangkok und Doha. Landung in Frankfurt am ${day(L[5].arr_date || L[5].date, 1)} um ${L[5].arr_time} Uhr.` },
+      ];
+      $('story').innerHTML = chapters.map((c, i) => `<article class="chapter" data-i="${i}"><div class="chapter-stage">
+        <div class="ch-img" style="background-image:url('/img/photos/${c.img}');background-position:${c.pos}"></div><div class="ch-veil"></div>
+        <div class="ch-card pointer-events-auto editorial-card-solid p-6 sm:p-8"><p class="text-xs uppercase tracking-[0.2em] text-sandGold font-semibold mb-2">${esc(c.kicker)}</p>
+          <h2 class="font-serif text-3xl sm:text-4xl font-bold text-ink leading-tight">${esc(c.title)}</h2><p class="mt-3 text-sm sm:text-base text-muted leading-relaxed">${esc(c.text)}</p></div>
+        <div class="ch-credit" data-file="${esc(c.img)}"></div></div></article>`).join('');
+      fillCredits();
+      // Fehlende Bilder (noch nicht heruntergeladen): ruhiger Verlauf mit Flugzeug-Grafik statt leerer Flaeche
+      chapters.forEach((c, i) => { const t = new Image(); t.onerror = () => { const n = document.querySelector(`.chapter[data-i="${i}"] .ch-img`); n.style.backgroundImage = 'linear-gradient(135deg,#cfe6ee,#eaf4f1)'; n.innerHTML = '<div class="absolute inset-0 flex items-center justify-center p-10">' + planeSvg(i === 2 ? 'A319' : 'B787').replace('w-full', 'w-[70%]') + '</div>'; }; t.src = '/img/photos/' + c.img; });
+      if (window.gsap && window.ScrollTrigger && !reduceMotion) {
+        document.querySelectorAll('.chapter').forEach((ch) => {
+          const img = ch.querySelector('.ch-img'), card = ch.querySelector('.ch-card');
+          gsap.fromTo(img, { scale: 1.18, yPercent: -3 }, { scale: 1, yPercent: 3, ease: 'none', scrollTrigger: { trigger: ch, start: 'top bottom', end: 'bottom top', scrub: true } });
+          gsap.timeline({ scrollTrigger: { trigger: ch, start: 'top 55%', end: 'bottom 45%', scrub: true } })
+            .fromTo(card, { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: .3 }).to(card, { opacity: 1, duration: .4 }).to(card, { opacity: 0, y: -40, duration: .3 });
+        });
+        ScrollTrigger.refresh();
+      }
+    }
+    // Villa-Galerie: zeigt alle vorhandenen Fotos /img/villa/villa-01.jpg ... villa-10.jpg
+    const VILLA_CAPTIONS = ['Wohnbereich', 'Schlafbereich', 'Blick vom Bett', 'Suite mit Sofa', 'Bad mit Wanne', 'Terrasse mit Sonnenschirm', 'Deluxe Garden Villa', 'Grundriss', 'Villa im Garten', 'Resort von oben'];
+    async function buildVillaGallery() {
+      const box = $('villa-gallery'); if (!box) return;
+      const found = [];
+      await Promise.all(VILLA_CAPTIONS.map((cap, i) => new Promise((res) => { const f = `/img/villa/villa-${String(i + 1).padStart(2, '0')}.jpg`; const t = new Image(); t.onload = () => { found[i] = { f, cap }; res(); }; t.onerror = res; t.src = f; })));
+      const list = found.filter(Boolean); if (!list.length) return;
+      box.innerHTML = `<div class="editorial-card-solid p-6 sm:p-8"><h3 class="text-xs font-semibold uppercase tracking-wider text-muted mb-4">DEINE VILLA · DELUXE GARDEN VILLA</h3><div class="grid grid-cols-2 md:grid-cols-4 gap-3">` +
+        list.map((p, k) => `<figure class="${k === 0 ? 'col-span-2 row-span-2' : ''} overflow-hidden rounded-xl border border-hairline"><img src="${p.f}" alt="${esc(p.cap)}" loading="lazy" class="w-full h-full object-cover hover:scale-105 transition-transform duration-500" style="aspect-ratio:${k === 0 ? '4/3' : '4/3'}"><figcaption class="px-3 py-1.5 text-[11px] text-muted bg-white">${esc(p.cap)}</figcaption></figure>`).join('') + '</div></div>';
+    }
 
     // =========================================================================
     // 4. START
