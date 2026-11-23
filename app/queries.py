@@ -201,6 +201,14 @@ def guarantee_payload(session, cfg: Config) -> dict:
     bf = cfg.trip.booked_flight
     flight = bf.price_total if bf else None
     out.update({
+        "hotel_name": cfg.trip.hotel.name, "checkin": cfg.trip.hotel_checkin.isoformat(),
+        "checkout": cfg.trip.hotel_checkout.isoformat(), "nights": cfg.trip.nights,
+        "provider": bh.provider if bh else "Agoda", "booked_on": bh.booked_on.isoformat() if bh and bh.booked_on else None,
+        "hotel_note": bh.note if bh else "",
+        "flight_detail": ({"outbound_date": bf.outbound_date.isoformat(), "return_date": bf.return_date.isoformat(),
+                           "origin": bf.origin, "destination": bf.destination, "airlines": bf.airlines,
+                           "outbound_info": bf.outbound_info, "return_info": bf.return_info,
+                           "booking_ref": bf.booking_ref, "note": bf.note} if bf else None),
         "booked_thb": (bh.price_local if bh else None) or cfg.alerts.booked_hotel_thb, "flight": flight, "persons": cfg.trip.persons,
         "total": round(flight + booked, 2) if (flight and booked) else None,
         "target_total": cfg.alerts.target_total, "saving": 0.0,

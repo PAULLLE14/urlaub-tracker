@@ -300,3 +300,71 @@ tr.win td { background: var(--coral-soft); }
 
 /* Hotel gebucht: nur die Agoda-Preisgarantie-Uebersicht zeigen */
 body.guarantee-mode main > section:not(#guaranteeSection) { display: none !important; }
+
+/* ---------- Reise-Flyer (Hotel gebucht) ---------- */
+body.guarantee-mode #guaranteeSection { padding: 0; border: 0; background: transparent; box-shadow: none; }
+body.guarantee-mode #guaranteeSection > h2 { display: none; }
+#guaranteeBox { display: grid; gap: 18px; }
+.flyer-hero { position: relative; min-height: 300px; border-radius: 18px; background-size: cover; background-position: center 38%; color: #fff; display: flex; flex-direction: column; justify-content: space-between; padding: 18px 22px 22px; box-shadow: 0 10px 30px rgba(20,40,38,.18); overflow: hidden; }
+.fh-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fh-chip, .fh-count { background: rgba(255,255,255,.18); backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,.35); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; font-weight: 600; }
+.fh-kicker { text-transform: uppercase; letter-spacing: .18em; font-size: 12px; opacity: .9; }
+.fh-title { font-family: "Fraunces", Georgia, serif; font-size: clamp(32px, 6vw, 54px); font-weight: 560; margin: 4px 0 6px; letter-spacing: -0.02em; color: #fff; border: 0; padding: 0; text-transform: none; }
+.fh-meta { font-size: 15px; opacity: .95; }
+.facts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+.fact { display: flex; gap: 10px; align-items: center; background: var(--surface-soft); border: 1px solid var(--hairline); border-radius: 14px; padding: 10px 12px; }
+.fact .fi { font-size: 22px; }
+.fact .fl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.fact .fv { font-size: 13.5px; font-weight: 650; color: var(--ink); line-height: 1.25; }
+.flyer-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.ticket { position: relative; background: var(--canvas); border: 1px solid var(--hairline); border-radius: 18px; padding: 18px 20px 14px; box-shadow: 0 4px 16px rgba(20,20,19,.07); }
+.ticket::before, .ticket::after { content: ""; position: absolute; top: 62%; width: 18px; height: 18px; border-radius: 50%; background: var(--surface-soft); border: 1px solid var(--hairline); }
+.ticket::before { left: -10px; }
+.ticket::after { right: -10px; }
+.ticket-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.tag { border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; }
+.tag.ok { background: var(--teal-soft); color: #1f6b60; }
+.route { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; }
+.route .code { font-family: "Fraunces", Georgia, serif; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; }
+.route .when { font-size: 12px; color: var(--muted); }
+.route .stop.right { text-align: right; }
+.route .line { flex: 1; position: relative; border-top: 2px dashed var(--hairline); text-align: center; min-width: 60px; }
+.route .plane { position: absolute; left: 50%; top: -13px; transform: translateX(-50%); background: var(--canvas); padding: 0 6px; font-size: 20px; color: var(--coral); }
+.route .dur { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.ticket-rows { display: grid; gap: 6px; border-top: 1px dashed var(--hairline); padding-top: 12px; }
+.ticket-rows > div { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.ticket-rows span { color: var(--muted); }
+.ticket-rows b { font-weight: 600; text-align: right; }
+.ticket-foot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--hairline); font-size: 12.5px; color: var(--muted); }
+.ticket-foot b { font-family: "Fraunces", Georgia, serif; font-size: 26px; color: var(--ink); font-weight: 600; }
+.ticket.hotel .hotel-name { font-family: "Fraunces", Georgia, serif; font-size: 26px; font-weight: 600; margin-bottom: 2px; }
+.hotel-sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+.flyer-total { display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px; }
+.flyer-total > div { border-radius: 18px; padding: 18px 22px; border: 1px solid var(--hairline); }
+.ft-main { background: linear-gradient(135deg, var(--coral-soft), #fbf3ee); border-color: var(--coral) !important; }
+.ft-save { background: var(--surface-soft); }
+.ft-save.good { background: #e8f5e9; border-color: #2e7d32 !important; }
+.ft-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 700; }
+.ft-value { font-family: "Fraunces", Georgia, serif; font-size: 40px; font-weight: 600; letter-spacing: -0.02em; margin: 4px 0 2px; }
+.ft-sub { font-size: 13px; color: var(--body); }
+.bar { height: 8px; border-radius: 999px; background: rgba(0,0,0,.08); margin-top: 12px; overflow: hidden; }
+.bar span { display: block; height: 100%; background: var(--coral); border-radius: 999px; }
+.bar-cap { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+.flyer-gauge, .flyer-table { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 18px; padding: 16px 22px 18px; }
+.fg-title { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: var(--muted); margin-bottom: 14px; }
+.scale { position: relative; height: 74px; margin: 6px 12px 0; }
+.scale-line { position: absolute; left: 0; right: 0; top: 36px; height: 6px; border-radius: 999px; background: linear-gradient(90deg, #cfe6d6, #f1ded4 60%, #efe9de); }
+.mk { position: absolute; top: 33px; transform: translateX(-50%); }
+.mk-dot { display: block; width: 12px; height: 12px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.2); margin-left: -6px; }
+.mk-alarm .mk-dot { background: #2e7d32; }
+.mk-booked .mk-dot { background: var(--coral); }
+.mk-best .mk-dot { background: #4a5568; }
+.mk-txt { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11.5px; text-align: center; color: var(--body); line-height: 1.25; }
+.mk-txt.up { bottom: 22px; }
+.mk-txt.down { top: 22px; }
+.fg-note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+.flyer-table td.neg { color: #1e6b3a; font-weight: 700; }
+.flyer-rules { background: var(--canvas); border: 1px solid var(--hairline); border-radius: 14px; padding: 12px 18px; font-size: 13px; color: var(--body); }
+.flyer-rules summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+.flyer-rules ul { margin: 10px 0 2px; padding-left: 18px; display: grid; gap: 6px; }
+@media (max-width: 900px) { .facts { grid-template-columns: repeat(2, 1fr); } .flyer-cards, .flyer-total { grid-template-columns: 1fr; } .flyer-hero { min-height: 230px; } }

@@ -45,6 +45,10 @@ class BookedFlight(BaseModel):
     origin: str = ""                      # optional, nur Anzeige
     airlines: list[str] = []
     note: str = ""
+    destination: str = ""                # optional, nur Anzeige (z. B. USM)
+    outbound_info: str = ""              # optional, z. B. "FRA 21:10 -> USM 16:40 (+1)"
+    return_info: str = ""                # optional, z. B. "USM 18:30 -> FRA 07:15"
+    booking_ref: str = ""                # optional
 
 
 class ReferenceOffer(BaseModel):

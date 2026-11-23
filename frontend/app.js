@@ -1036,60 +1036,127 @@ async function loadHealth() {
 async function loadGuarantee() {
   const g = await api("/api/guarantee");
   const sec = $("#guaranteeSection");
-  document.body.classList.toggle("guarantee-mode", !!g.active);   // blendet alles ausser der Garantie-Uebersicht aus
+  document.body.classList.toggle("guarantee-mode", !!g.active);   // blendet alles ausser dem Flyer aus
   if (!g.active) { sec.hidden = true; return; }
   sec.hidden = false;
-  // Alte Einzel-Bereiche ersetzt diese Uebersicht
-  for (const id of ["#bestHotel", "#cheapestFlight"]) { const n = $(id); if (n && n.closest("section")) n.closest("section").hidden = true; }
   const box = $("#guaranteeBox");
-  box.innerHTML = "";
-  const dl = new Date(g.deadline + "T23:59:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const fmtDay = (iso, opt) => new Date(iso + "T12:00:00").toLocaleDateString("de-DE", opt || { weekday: "short", day: "2-digit", month: "long", year: "numeric" });
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const best = g.best;
   const saving = g.saving || 0;
-  const tile = (label, value, sub, cls) =>
-    `<div class="trip-tile ${cls || ""}"><div class="tt-label">${label}</div><div class="tt-value">${value}</div><div class="tt-sub">${sub || ""}</div></div>`;
+  const days = Math.max(0, Math.ceil((new Date(g.deadline + "T23:59:00") - new Date()) / 86400000));
+  const f = g.flight_detail || {};
+  const outDay = f.outbound_date ? fmtDay(f.outbound_date) : "";
+  const arrIso = f.outbound_date ? new Date(new Date(f.outbound_date + "T12:00:00").getTime() + 86400000).toISOString().slice(0, 10) : "";
+  const retDay = f.return_date ? fmtDay(f.return_date) : "";
+  const flightDays = f.outbound_date && f.return_date ? Math.round((new Date(f.return_date) - new Date(f.outbound_date)) / 86400000) : null;
+
+  // --- Preisskala: Alarm-Schwelle | dein Preis | bester anerkannter Preis
+  const marks = [];
+  if (g.threshold) marks.push({ v: g.threshold, label: "Alarm", cls: "mk-alarm" });
+  marks.push({ v: g.booked, label: "dein Preis", cls: "mk-booked" });
+  if (best) marks.push({ v: best.total, label: best.source, cls: "mk-best" });
+  const lo = Math.min(...marks.map((m) => m.v)) * 0.97, hi = Math.max(...marks.map((m) => m.v)) * 1.02;
+  const pos = (v) => (((v - lo) / (hi - lo)) * 100).toFixed(1);
+  const scale = marks.map((m, i) =>
+    `<div class="mk ${m.cls}" style="left:${pos(m.v)}%"><span class="mk-dot"></span><span class="mk-txt ${i % 2 ? "up" : "down"}">${esc(m.label)}<br><b>${money(m.v)}</b></span></div>`).join("");
+
+  // --- Fortschritt zum Ziel
+  const tgt = g.target_total, tot = g.total;
   const toTarget = g.to_target;
-  const grid = el("div");
-  grid.className = "trip-tiles";
-  grid.innerHTML =
-    tile("Flug · gebucht ✓", money2(g.flight), g.flight ? `${money2(g.flight / g.persons)} p. P.` : "") +
-    tile("Hotel · gebucht ✓ (Agoda)", money2(g.booked), g.booked_thb ? `${g.booked_thb.toLocaleString("de-DE", { minimumFractionDigits: 2 })} ฿` : "") +
-    tile("Gesamtbetrag", money2(g.total), (g.per_person ? `${money2(g.per_person)} p. P.` : "") +
-      (toTarget != null ? ` · ${toTarget > 0 ? money2(toTarget) + " über" : money2(Math.abs(toTarget)) + " unter"} dem Ziel (${money(g.target_total)})` : ""), "tt-total") +
-    tile("Ersparnis durch Preisgarantie", money2(saving),
-      best ? (saving > 0 ? `${best.source} ist ${money2(saving)} günstiger – Antrag möglich` : `bester anerkannter Preis heute: ${money2(best.total)} (${best.source})`)
-           : "keine anerkannte Plattform verfügbar", saving > 0 ? "tt-good" : "tt-muted");
-  box.appendChild(grid);
+  const pct = tgt && tot ? Math.min(100, (tgt / tot) * 100).toFixed(1) : null;
 
-  const info = el("p");
-  info.className = "small muted";
-  info.style.marginTop = "12px";
-  info.innerHTML =
-    `<b>So funktioniert die Garantie:</b> Findest du dieselbe Buchung (gleicher Zimmer- und Bettentyp, 8 Gäste, gleiche oder flexiblere Stornierung, Preis mit Steuern und Gebühren) ` +
-    `auf einer anerkannten Plattform günstiger, gleicht Agoda aus oder schreibt die Differenz als AgodaCash gut. ` +
-    `Antrag bis <b>${dl}, 23:59 Uhr</b> (Ortszeit Hotel) mit Buchungsnummer, Link und bis zu 3 Screenshots. ` +
-    `Anerkannt: ${g.platforms.join(", ")}. Nicht anerkannt: Mitglieds-, Code- und Kreditkartenpreise, Aktionen ` +
-    `und alles über Super.com, Stayforlong, CHECK24 oder Google. Mail-Alarm ab ${g.threshold ? money2(g.threshold) : "–"} (160 € unter deinem Preis).`;
-  box.appendChild(info);
+  box.innerHTML = `
+  <div class="flyer-hero" style="background-image:linear-gradient(180deg,rgba(14,40,38,.15) 0%,rgba(14,40,38,.78) 100%),url('/img/santiburi.jpg')">
+    <div class="fh-top"><span class="fh-chip">Reise bestätigt ✓</span><span class="fh-count">${esc(Math.max(0, Math.ceil((new Date(g.checkin + "T00:00:00") - new Date()) / 86400000)))} Tage bis Thailand 🌴</span></div>
+    <div class="fh-body">
+      <div class="fh-kicker">Koh Samui · Thailand</div>
+      <h1 class="fh-title">${esc(g.hotel_name)}</h1>
+      <div class="fh-meta">${fmtDay(g.checkin, { day: "2-digit", month: "long" })} – ${fmtDay(g.checkout, { day: "2-digit", month: "long", year: "numeric" })} · ${g.nights} Nächte · ${g.persons} Personen · 3 Villen</div>
+    </div>
+  </div>
 
-  if (g.offers.length) {
-    const tbl = el("table");
-    tbl.innerHTML = "<thead><tr><th>Anerkannte Plattform</th><th>Gesamt (3 Zimmer)</th><th>p. P./Nacht</th><th>Abstand zu deinem Preis</th></tr></thead>";
-    const tb = el("tbody");
-    for (const o of g.offers.slice(0, 8)) {
-      const tr = el("tr");
-      const a = el("a"); a.textContent = o.source; if (o.url) { a.href = o.url; a.target = "_blank"; a.rel = "noopener"; }
-      const td0 = el("td"); td0.appendChild(a);
-      tr.appendChild(td0);
-      for (const v of [money2(o.total), money2(o.per_person_night), (o.total - g.booked >= 0 ? "+" : "−") + money2(Math.abs(o.total - g.booked))]) {
-        const td = el("td"); td.textContent = v; tr.appendChild(td);
-      }
-      tb.appendChild(tr);
-    }
-    tbl.appendChild(tb);
-    const wrap = el("div"); wrap.className = "table-wrap"; wrap.appendChild(tbl);
-    box.appendChild(wrap);
-  }
+
+  <div class="facts">
+    <div class="fact"><span class="fi">🕒</span><div><div class="fl">Jetzt auf Koh Samui</div><div class="fv" id="factLocalTime">–</div></div></div>
+    <div class="fact"><span class="fi">🌍</span><div><div class="fl">Zeitverschiebung im Mai</div><div class="fv">+5 Stunden</div></div></div>
+    <div class="fact"><span class="fi">🛫</span><div><div class="fl">Abflug in</div><div class="fv">${f.outbound_date ? Math.max(0, Math.ceil((new Date(f.outbound_date + "T00:00:00") - new Date()) / 86400000)) + " Tagen" : "–"}</div></div></div>
+    <div class="fact"><span class="fi">🌡</span><div><div class="fl">Mai auf Samui (typisch)</div><div class="fv">28–32 °C · Meer 29 °C</div></div></div>
+    <div class="fact"><span class="fi">🌙</span><div><div class="fl">Nachtflug</div><div class="fv">${arrIso ? "Ankunft " + esc(fmtDay(arrIso, { weekday: "short", day: "2-digit", month: "short" })) : "–"}</div></div></div>
+    <div class="fact"><span class="fi">👥</span><div><div class="fl">Pro Person gesamt</div><div class="fv">${money2(g.per_person)}</div></div></div>
+  </div>
+
+  <div class="flyer-cards">
+    <article class="ticket">
+      <div class="ticket-head"><span>✈ Flug</span><span class="tag ok">gebucht</span></div>
+      <div class="route">
+        <div class="stop"><div class="code">${esc(f.origin || "ABFLUG")}</div><div class="when">${outDay ? esc(fmtDay(f.outbound_date, { weekday: "short", day: "2-digit", month: "short" })) : ""}</div></div>
+        <div class="line"><span class="plane">✈</span><span class="dur">${flightDays != null ? flightDays + " Tage" : ""}</span></div>
+        <div class="stop right"><div class="code">${esc(f.destination || "USM")}</div><div class="when">${arrIso ? "Ankunft " + esc(fmtDay(arrIso, { weekday: "short", day: "2-digit", month: "short" })) : ""}</div></div>
+      </div>
+      <div class="ticket-rows">
+        <div><span>Hinflug</span><b>${outDay ? esc(outDay) : "–"}</b></div>
+        ${f.outbound_info ? `<div><span>Details</span><b>${esc(f.outbound_info)}</b></div>` : ""}
+        <div><span>Rückflug</span><b>${retDay ? esc(retDay) : "–"}</b></div>
+        ${f.return_info ? `<div><span>Details</span><b>${esc(f.return_info)}</b></div>` : ""}
+        ${(f.airlines || []).length ? `<div><span>Airline</span><b>${esc(f.airlines.join(", "))}</b></div>` : ""}
+        ${f.booking_ref ? `<div><span>Buchungscode</span><b>${esc(f.booking_ref)}</b></div>` : ""}
+        <div><span>Passagiere</span><b>${g.persons}</b></div>
+      </div>
+      <div class="ticket-foot"><span>${money2(g.flight / g.persons)} p. P.</span><b>${money2(g.flight)}</b></div>
+    </article>
+
+    <article class="ticket hotel">
+      <div class="ticket-head"><span>🏝 Hotel</span><span class="tag ok">gebucht · ${esc(g.provider)}</span></div>
+      <div class="hotel-name">${esc(g.hotel_name)}</div>
+      <div class="hotel-sub">3 × Deluxe Garten Villa · Frühstück inklusive · WLAN & Parkplatz</div>
+      <div class="ticket-rows">
+        <div><span>Check-in</span><b>${esc(fmtDay(g.checkin))}</b></div>
+        <div><span>Check-out</span><b>${esc(fmtDay(g.checkout))}</b></div>
+        <div><span>Gäste</span><b>${g.persons} Erwachsene (3 + 3 + 2)</b></div>
+        <div><span>Tarif</span><b>nicht erstattbar</b></div>
+        ${g.booked_on ? `<div><span>Gebucht am</span><b>${esc(fmtDay(g.booked_on, { day: "2-digit", month: "long", year: "numeric" }))}</b></div>` : ""}
+      </div>
+      <div class="ticket-foot"><span>${g.booked_thb ? g.booked_thb.toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " ฿ · " : ""}${money2(g.booked / g.persons / g.nights)} p. P./Nacht</span><b>${money2(g.booked)}</b></div>
+    </article>
+  </div>
+
+  <div class="flyer-total">
+    <div class="ft-main"><div class="ft-label">Gesamtbetrag Flug + Hotel</div><div class="ft-value">${money2(g.total)}</div>
+      <div class="ft-sub">${money2(g.per_person)} pro Person${toTarget != null ? ` · ${toTarget > 0 ? "<b>" + money2(toTarget) + "</b> über" : "<b>" + money2(Math.abs(toTarget)) + "</b> unter"} dem Ziel (${money(tgt)})` : ""}</div>
+      ${pct ? `<div class="bar"><span style="width:${pct}%"></span></div><div class="bar-cap">${pct} % vom Ziel ${money(tgt)} erreicht</div>` : ""}
+    </div>
+    <div class="ft-save ${saving > 0 ? "good" : ""}">
+      <div class="ft-label">Ersparnis durch Preisgarantie</div>
+      <div class="ft-value">${money2(saving)}</div>
+      <div class="ft-sub">${best ? (saving > 0 ? `${esc(best.source)} ist günstiger – Antrag möglich` : `Bester anerkannter Preis heute: <b>${money2(best.total)}</b> (${esc(best.source)})`) : "Keine anerkannte Plattform verfügbar"}</div>
+    </div>
+  </div>
+
+  <div class="flyer-gauge">
+    <div class="fg-title">🛡 Agoda-Preisgarantie · Preisvergleich</div>
+    <div class="scale"><div class="scale-line"></div>${scale}</div>
+    <div class="fg-note">Antrag möglich bis <b>${esc(fmtDay(g.deadline, { day: "2-digit", month: "long", year: "numeric" }))}, 23:59 Uhr</b> (Ortszeit Hotel) – noch <b>${days} Tage</b>. Mail-Alarm ab ${g.threshold ? money2(g.threshold) : "–"} (160 € unter deinem Preis).</div>
+  </div>
+
+  ${g.offers.length ? `<div class="flyer-table"><div class="fg-title">Anerkannte Plattformen · aktueller Stand</div>
+    <div class="table-wrap"><table><thead><tr><th>Plattform</th><th>Gesamt (3 Zimmer)</th><th>p. P./Nacht</th><th>Abstand zu deinem Preis</th></tr></thead><tbody>
+    ${g.offers.slice(0, 8).map((o) => `<tr><td>${o.url ? `<a href="${esc(o.url)}" target="_blank" rel="noopener">${esc(o.source)}</a>` : esc(o.source)}</td><td>${money2(o.total)}</td><td>${money2(o.per_person_night)}</td><td class="${o.total < g.booked ? "neg" : ""}">${o.total - g.booked >= 0 ? "+" : "−"}${money2(Math.abs(o.total - g.booked))}</td></tr>`).join("")}
+    </tbody></table></div></div>` : `<div class="flyer-table small muted">Aktuell bietet keine anerkannte Plattform Santiburi für den Zeitraum an.</div>`}
+
+  <details class="flyer-rules"><summary>So funktioniert die Preisgarantie</summary>
+    <ul>
+      <li>Gleiche Buchung günstiger auf einer <b>anerkannten Plattform</b>: ${esc(g.platforms.join(", "))}.</li>
+      <li>Gleiches Hotel, gleiche Daten, <b>gleicher Zimmer- und Bettentyp</b>, 8 Gäste, gleiche oder flexiblere Stornierung, Preis in Euro inkl. Steuern und Gebühren, Frühstück gleich oder besser.</li>
+      <li>Antrag mit Buchungsnummer, Link zur Plattform und bis zu 3 Screenshots – <b>bis 23:59 Uhr am Tag vor dem Check-in</b>. Den günstigeren Preis musst du nicht buchen.</li>
+      <li>Agoda gleicht den Preis an oder schreibt die Differenz als <b>AgodaCash</b> gut (nach eigenem Ermessen).</li>
+      <li>Nicht anerkannt: Mitglieds-, Code- und Kreditkartenpreise, private oder Paketraten, Aktionen und Gutscheine – und alles über Super.com, Stayforlong, CHECK24 oder Google.</li>
+    </ul>
+  </details>`;
+  const tick = () => { const n = document.getElementById("factLocalTime"); if (n) n.textContent = new Date().toLocaleTimeString("de-DE", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" }) + " Uhr"; };
+  tick();
+  if (window.__samuiClock) clearInterval(window.__samuiClock);
+  window.__samuiClock = setInterval(tick, 30000);
 }
 
 /* ---------------- refresh orchestration ---------------- */
