@@ -63,6 +63,13 @@ def healthz():
 
 @app.get("/")
 def index():
+    # Startseite: Reise-Showcase (Hotel & Flug gebucht, Preisgarantie-Waechter)
+    return FileResponse(FRONTEND_DIR / "reise.html")
+
+
+@app.get("/dashboard")
+def dashboard():
+    # Das urspruengliche Tracker-Dashboard mit allen Quellen und Tabellen
     return FileResponse(FRONTEND_DIR / "index.html")
 
 
