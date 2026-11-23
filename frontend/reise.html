@@ -54,7 +54,10 @@
     .stage { position: sticky; top: 0; height: 100vh; overflow: hidden; }
     .stage .photo { height: 100%; }
     .copy { position: absolute; left: var(--pad); bottom: 12vh; max-width: min(540px, 88vw); z-index: 3; }
-    .copy .label { color: rgba(255,255,255,.8); }
+    .copy { color: #fff; text-shadow: 0 1px 14px rgba(0,0,0,.55); }
+    .stage:not(.light)::after { content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background: linear-gradient(90deg, rgba(0,0,0,.62) 0%, rgba(0,0,0,.3) 45%, rgba(0,0,0,0) 75%), linear-gradient(0deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 55%); }
+    .copy .label { color: rgba(255,255,255,.85); }
+    .stage.light .copy { text-shadow: none; }
     .stage.light .copy, .stage.light .copy .label { color: var(--ink); } .stage.light .copy .label { color: var(--muted); }
     .copy h2 { font-size: clamp(28px, 3.6vw, 48px); margin: 10px 0 14px; }
     .copy p.t { font-size: clamp(15px, 1.25vw, 17px); line-height: 1.6; max-width: 46ch; opacity: .94; }
@@ -272,7 +275,9 @@
         { type: 'B787', kicker: day(L[0].date), title: 'Abflug in Frankfurt', text: `${L[0].dep_time} Uhr, ${L[0].flight} ab ${L[0].dep}${L[0].terminal ? ', ' + L[0].terminal : ''}. Mit der ${L[0].aircraft} durch die Nacht nach Doha, Landung ${L[0].arr_time} Uhr.` },
         { type: 'A380', kicker: day(L[1].date), title: 'Doha mitten in der Nacht', text: `Zwei ruhige Stunden Umstieg, dann ${L[1].flight} um ${L[1].dep_time} Uhr im ${L[1].aircraft} weiter nach Bangkok (${L[1].duration}, Landung ${L[1].arr_time} Uhr).` },
         { img: 'hamad-orchard.jpg', pos: 'center 45%', kicker: 'Doha · Hamad International Airport', title: 'Ein Garten im Terminal', text: `Zwischen den Flügen lohnt der Spaziergang durch den Indoor-Garten „The Orchard“ im Hamad International Airport. Danach geht es mit ${L[1].flight} weiter.` },
+        { img: 'bkk-terminal.jpg', pos: 'center 50%', kicker: `Bangkok · Suvarnabhumi Airport`, title: 'Zwischenstopp in Bangkok', text: `Landung ${L[1].arr_time} Uhr in Suvarnabhumi. Einreise, Gepäck und Terminalwechsel, dann geht es mit Bangkok Airways auf die Insel.` },
         { type: 'A319', kicker: day(L[2].date), title: 'Bangkok, der Inselhüpfer', text: `Kurz durchatmen, dann ${L[2].flight} um ${L[2].dep_time} Uhr im ${L[2].aircraft} von ${L[2].operated_by || 'Bangkok Airways'}. In ${L[2].duration} seid ihr auf Koh Samui.` },
+        { img: 'bkk-a319-samui.jpg', pos: 'center 55%', kicker: `${L[2].arr_time} Uhr · Samui Airport`, title: 'Landung auf Koh Samui', text: 'Die A319 von Bangkok Airways setzt auf der Insel auf. Der kleine Flughafen ist offen gebaut: Strohdächer und Pavillons statt Gates.' },
         { img: 'samui-airport.jpg', pos: 'center 42%', kicker: `${L[2].arr_time} Uhr · Samui Airport`, title: 'Landung auf Koh Samui', text: 'Der kleine Flughafen ist offen gebaut: Strohdächer und Pavillons statt Gates. Gepäckband unter freiem Himmel, dann seid ihr schon fast da.' },
         { img: 'maenam-bay.jpg', pos: 'center 58%', kicker: day(L[2].arr_date || L[2].date), title: 'Ankunft auf Koh Samui', text: `${L[2].arr_time} Uhr Ortszeit, fünf Stunden vor Deutschland. Transfer in die Bucht von Mae Nam, Check-in im Santiburi.` },
         { img: 'maenam-beach.jpg', pos: 'center 60%', kicker: `${g.nights} Nächte`, title: 'Maenam Beach', text: 'Acht Personen, drei Gartenvillen, Frühstück inklusive. Im Mai typisch 28 bis 32 Grad, Meer um 29 Grad, ruhige Bucht und lange Strandspaziergänge.' },

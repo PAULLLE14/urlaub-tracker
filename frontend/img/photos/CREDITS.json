@@ -70,5 +70,23 @@
     "license_url": "https://creativecommons.org/licenses/by/3.0",
     "source": "https://commons.wikimedia.org/wiki/File:Samui_Airport,_2015_febr._-_panoramio.jpg",
     "bytes": 666200
+  },
+  {
+    "file": "bkk-terminal.jpg",
+    "title": "Suvarnabhumi Airport Terminal E interior at dusk.jpg",
+    "artist": "Grendelkhan",
+    "license": "CC BY-SA 3.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Suvarnabhumi_Airport_Terminal_E_interior_at_dusk.jpg",
+    "bytes": 822657
+  },
+  {
+    "file": "bkk-a319-samui.jpg",
+    "title": "Bangkok Airways A319 at Koh Samui Airport.JPG",
+    "artist": "D.G. Bouma",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Bangkok_Airways_A319_at_Koh_Samui_Airport.JPG",
+    "bytes": 387977
   }
 ]
