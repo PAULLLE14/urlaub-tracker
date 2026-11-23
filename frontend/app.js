@@ -1070,8 +1070,7 @@ async function loadGuarantee() {
   <div class="flyer-hero" style="background-image:linear-gradient(180deg,rgba(14,40,38,.15) 0%,rgba(14,40,38,.78) 100%),url('/img/santiburi.jpg')">
     <div class="fh-top"><span class="fh-chip">Reise bestätigt ✓</span><span class="fh-count">${esc(Math.max(0, Math.ceil((new Date(g.checkin + "T00:00:00") - new Date()) / 86400000)))} Tage bis Thailand 🌴</span></div>
     <div class="fh-body">
-      <div class="fh-kicker">Koh Samui · Thailand</div>
-      <h1 class="fh-title">${esc(g.hotel_name)}</h1>
+      <h1 class="fh-title sr">${esc(g.hotel_name)}</h1>
       <div class="fh-meta">${fmtDay(g.checkin, { day: "2-digit", month: "long" })} – ${fmtDay(g.checkout, { day: "2-digit", month: "long", year: "numeric" })} · ${g.nights} Nächte · ${g.persons} Personen · 3 Villen</div>
     </div>
   </div>

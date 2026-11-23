@@ -368,3 +368,7 @@ body.guarantee-mode #guaranteeSection > h2 { display: none; }
 .flyer-rules summary { cursor: pointer; font-weight: 700; color: var(--ink); }
 .flyer-rules ul { margin: 10px 0 2px; padding-left: 18px; display: grid; gap: 6px; }
 @media (max-width: 900px) { .facts { grid-template-columns: repeat(2, 1fr); } .flyer-cards, .flyer-total { grid-template-columns: 1fr; } .flyer-hero { min-height: 230px; } }
+
+.sr { position: absolute; left: -9999px; }
+.flyer-hero { background-position: center 30%; }
+.fh-meta { font-size: 17px; font-weight: 600; text-shadow: 0 1px 8px rgba(0,0,0,.45); }
