@@ -293,7 +293,7 @@ trend:
 
 # --- Benachrichtigungen ------------------------------------------------
 alerts:
-  enabled: true
+  enabled: false              # Hotel bei Agoda gebucht (23.11.26): keine Preisalarm-Mails, keine 9-Uhr-Tagesmail
   daily_digest:
     dashboard_url: http://204.168.234.248:8080   # "Zum Tracker"-Button in der Tagesmail
   # Absolute Schwellen (Gesamtpreis fuer 8 Pax, in trip.currency).
