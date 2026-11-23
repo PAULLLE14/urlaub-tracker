@@ -9,10 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Loader fuer echte .glb-Modelle (Draco-komprimiert moeglich) -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -40,14 +38,22 @@
     ::-webkit-scrollbar-thumb { background: #D6CFC2; border-radius: 9999px; } ::-webkit-scrollbar-thumb:hover { background: #0F5C5C; }
     @keyframes dashFlow { to { stroke-dashoffset: -24; } }
     .route-dash { stroke-dasharray: 6 6; animation: dashFlow 1.4s linear infinite; }
+    .cloud { position: absolute; width: 360px; height: 120px; border-radius: 999px; background: radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.95), rgba(255,255,255,.55) 55%, rgba(255,255,255,0) 72%); filter: blur(3px); opacity: .85; will-change: transform; }
     .btn-line { border: 1px solid #E6E1D6; background: #fff; border-radius: 10px; padding: 6px 12px; font-weight: 600; font-size: 12px; }
     .btn-line:hover { border-color: #0F5C5C; color: #0F5C5C; }
   </style>
 </head>
 <body class="antialiased selection:bg-lagoon selection:text-white">
 
-  <div id="three-stage" class="fixed inset-0 z-0 pointer-events-auto">
-    <canvas id="three-canvas" class="w-full h-full block"></canvas>
+  <!-- Buehne: Himmel, Wolken, Resort-Foto, Flugzeug (Parallax); optional 3D-Canvas fuer echte .glb -->
+  <div id="stage" class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+    <div class="absolute inset-0" style="background:linear-gradient(180deg,#dbeeff 0%,#eef6fb 55%,#FAF8F5 100%)"></div>
+    <div id="resort-layer" class="absolute inset-0 opacity-0" style="background:url('/img/santiburi.jpg') center/cover no-repeat"></div>
+    <div id="cloud-layer" class="absolute inset-0"></div>
+    <div id="plane-layer" class="absolute" style="top:6vh;left:0;width:min(46vw,560px);will-change:transform">
+      <div id="plane-inner"></div>
+    </div>
+    <canvas id="three-canvas" class="hidden absolute inset-0 w-full h-full pointer-events-auto"></canvas>
     <div class="pointer-events-none absolute inset-0 sky-veil"></div>
   </div>
 
@@ -95,7 +101,7 @@
           <h1 id="hero-title" class="font-serif text-4xl sm:text-5xl lg:text-[3.4rem] font-bold tracking-tight text-ink leading-[1.06]">SANTIBURI<br /><span class="text-lagoon">KOH SAMUI</span></h1>
           <p id="hero-meta" class="mt-4 text-sm sm:text-base text-muted font-medium">&nbsp;</p>
           <div class="mt-6 pt-5 border-t border-hairline flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
-            <span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-qatar"></span>Im Hintergrund frei dreh- und zoombar, Scrollen steuert die Kamera</span>
+            <span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-qatar"></span>Beim Scrollen zieht das Flugzeug durch das Bild</span>
             <a href="#flight-section" class="inline-flex items-center gap-1 font-semibold text-lagoon hover:text-lagoonLight">Zu den Flügen
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg>
             </a>
@@ -107,7 +113,7 @@
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>
             </div>
             <div>
-              <div class="text-[11px] uppercase tracking-wider text-muted font-medium">3D Live-Szene</div>
+              <div class="text-[11px] uppercase tracking-wider text-muted font-medium">Aktuelle Maschine</div>
               <div id="hud-scene-label" class="font-semibold text-ink">Boeing 787-9 · Qatar Airways</div>
             </div>
           </div>
@@ -129,7 +135,7 @@
               <span class="px-2.5 py-0.5 rounded-full bg-lagoonTint text-lagoon text-xs font-semibold border border-lagoon/20">gebucht</span>
             </div>
             <h2 class="font-serif text-2xl sm:text-3xl font-bold text-ink">Flotte &amp; Flugkorridor</h2>
-            <p class="text-xs sm:text-sm text-muted mt-1">Flugzeugtyp oder Teilstrecke anklicken, um das 3D-Modell zu wechseln.</p>
+            <p class="text-xs sm:text-sm text-muted mt-1">Flugzeugtyp oder Teilstrecke anklicken, um die Maschine zu wechseln.</p>
           </div>
           <div id="fleet-buttons" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5"></div>
         </div>
@@ -163,7 +169,7 @@
             <span id="hotel-foot" class="text-xs sm:text-sm text-muted font-medium"></span>
             <span id="hotel-price" class="text-2xl sm:text-3xl font-bold text-ink"></span>
           </div>
-          <div class="mt-6 pt-5 border-t border-hairline">
+          <div id="villa-controls" hidden class="mt-6 pt-5 border-t border-hairline">
             <div class="text-[11px] font-semibold uppercase tracking-wider text-muted mb-2.5">3D-Modell steuern</div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button onclick="setVillaView('exterior')" id="villa-btn-exterior" class="villa-btn px-3 py-2.5 rounded-xl text-xs font-semibold bg-lagoon text-white border border-lagoon transition-all">Außenansicht</button>
@@ -174,8 +180,8 @@
         </div>
         <div class="lg:col-span-6 flex flex-col justify-end min-h-[340px] lg:min-h-[520px]">
           <div class="pointer-events-auto self-end editorial-card p-4 max-w-sm">
-            <div class="flex items-center gap-2 text-xs font-semibold text-lagoon mb-1"><span class="w-2 h-2 rounded-full bg-lagoon"></span><span>VILLA-MODELL</span></div>
-            <p class="text-xs text-muted leading-relaxed">Walmdach aus Teakholz, helle Kalkstein-Fassade, Panorama-Schiebefenster, Sonnendeck und Plunge-Pool.</p>
+            <div class="flex items-center gap-2 text-xs font-semibold text-lagoon mb-1"><span class="w-2 h-2 rounded-full bg-lagoon"></span><span>MAE NAM BEACH</span></div>
+            <p class="text-xs text-muted leading-relaxed">Ruhige Bucht im Norden von Koh Samui, Villen mit eigenem Pool im tropischen Garten. Foto: Santiburi Koh Samui.</p>
           </div>
         </div>
       </div>
@@ -414,299 +420,164 @@
     setInterval(loadAll, 5 * 60 * 1000);
 
     // =========================================================================
-    // 2. THREE.JS: SZENE, LICHT, QUALITAETSSTUFEN
+    // 2. BUEHNE: GSAP-PARALLAX (kein prozeduraler 3D-Ersatz)
+    //    Flugzeugfotos:  /img/planes/<typ>.webp|png   (freigestellt, Nase nach rechts)
+    //    Resort-Foto:    /img/villa/santiburi-deluxe-garden-villa.webp, sonst /img/santiburi.jpg
+    //    Echte 3D-Modelle: /models/*.glb  -> werden automatisch geladen (siehe unten)
     // =========================================================================
-    const LOW_END = (navigator.hardwareConcurrency || 4) <= 4 || /Mobi|Android/i.test(navigator.userAgent);
-    const canvas = $('three-canvas');
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LOW_END, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOW_END ? 1.5 : 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = !LOW_END;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    const PLANE_FILES = { B787: 'qatar-b787', A380: 'qatar-a380', A319: 'bangkok-a319' };
+    let currentType = 'B787';
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    const scene = new THREE.Scene();
-    const skyColorHex = 0xdbeeff, lagoonSkyHex = 0xd8f1ef;
-    scene.background = new THREE.Color(skyColorHex);
-    scene.fog = new THREE.FogExp2(skyColorHex, 0.011);
-    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 220);
-    camera.position.set(0, 2.5, 13.5);
-
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xe8dfd1, 0.95));
-    const sunLight = new THREE.DirectionalLight(0xfff8eb, 1.35);
-    sunLight.position.set(14, 22, 16); sunLight.castShadow = !LOW_END;
-    sunLight.shadow.mapSize.set(1024, 1024);
-    scene.add(sunLight);
-    const fillLight = new THREE.DirectionalLight(0xbbe7ff, 0.5); fillLight.position.set(-12, 8, -10); scene.add(fillLight);
-
-    // Himmel: Meer + Wolken
-    const skyEnvironment = new THREE.Group(); scene.add(skyEnvironment);
-    const distantOcean = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), new THREE.MeshStandardMaterial({ color: 0x2299a8, roughness: .35, metalness: .1, transparent: true, opacity: .42 }));
-    distantOcean.rotation.x = -Math.PI / 2; distantOcean.position.y = -11; skyEnvironment.add(distantOcean);
-    const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .95, transparent: true, opacity: .88 });
-    const clouds = [];
-    function createCloudCluster(x, y, z, s) {
-      const g = new THREE.Group();
-      [[0, 0, 0, 1.3], [1.1, -.15, .2, 1], [-1.15, -.2, -.1, .95], [.45, .45, -.2, .9], [-.4, .35, .25, .85]].forEach(([px, py, pz, r]) => {
-        const p = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 14), cloudMat); p.position.set(px, py, pz); p.scale.set(1.2, .72, 1); g.add(p);
-      });
-      g.position.set(x, y, z); g.scale.setScalar(s); skyEnvironment.add(g); clouds.push(g);
+    // Dezente Seitenansicht als Platzhalter, solange kein Foto in /img/planes/ liegt
+    function planeSvg(type) {
+      const qatar = type !== 'A319', body = qatar ? '#EDE6DA' : '#FFFFFF', accent = qatar ? '#5C0632' : '#0F5C5C', big = type === 'A380';
+      const h = big ? 36 : 28;
+      return `<svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="w-full h-auto" style="filter:drop-shadow(0 18px 18px rgba(26,32,44,.18))">
+        <defs><clipPath id="fus"><path d="M30 ${88 - h} C30 ${70 - h / 2} 130 ${58 - h / 2} 290 ${58 - h / 2} L500 ${62 - h / 2} C575 ${64 - h / 2} 622 ${78 - h / 4} 632 88 C622 ${100 + h / 4} 575 ${112 + h / 2} 500 ${114 + h / 2} L290 ${118 + h / 2} C130 ${118 + h / 2} 30 ${106 + h / 2} 30 88Z"/></clipPath></defs>
+        <path d="M70 70 L22 8 L112 8 L172 66Z" fill="${accent}"/>
+        <path d="M285 92 L372 158 L412 158 L352 92Z" fill="#CBD5E1"/>
+        <ellipse cx="345" cy="118" rx="30" ry="13" fill="#E2E8F0" stroke="#94A3B8"/><ellipse cx="372" cy="118" rx="6" ry="11" fill="${accent}"/>
+        <g clip-path="url(#fus)"><rect x="0" y="0" width="640" height="170" fill="${body}"/>
+          ${qatar ? `<rect x="0" y="100" width="640" height="70" fill="${accent}"/><rect x="0" y="96" width="640" height="5" fill="#C9B99F"/>`
+                  : `<path d="M0 100 C140 82 300 112 640 86 L640 170 L0 170Z" fill="${accent}" opacity=".95"/><path d="M0 92 C160 74 320 104 640 78" fill="none" stroke="#38BDF8" stroke-width="7"/>`}
+        </g>
+        <path d="M600 74 C615 76 626 82 630 88 L596 88Z" fill="#1E293B"/>
+        <line x1="150" y1="84" x2="560" y2="84" stroke="#64748B" stroke-width="5" stroke-dasharray="2 9" stroke-linecap="round" opacity=".7"/>
+      </svg>`;
     }
-    [[-9, 3.8, -10, 1.3], [8, 4.4, -14, 1.6], [-12, -2.8, -8, 1.15], [11, -2.2, -9, 1.35], [0, -4.5, -16, 1.8], [-5, 1.2, -22, 1.7]].forEach((a) => createCloudCluster(...a));
-
-    // =========================================================================
-    // 3. MODELLE: ECHTE .glb (GLTFLoader + DRACOLoader) MIT FALLBACK AUF PROZEDURALE MODELLE
-    // =========================================================================
-    // Dateien nach frontend/models/ legen, dann werden sie automatisch benutzt.
-    const MODEL_FILES = { B787: '/models/b787-qatar.glb', A380: '/models/a380-qatar.glb', A319: '/models/a319-bangkok.glb', villa: '/models/santiburi-villa.glb' };
-    const MODEL_TARGET = { B787: 8.4, A380: 9.8, A319: 6.2, villa: 7.4 };   // Zielgroesse (laengste Kante) in Szeneneinheiten
-    const LIVERY = { B787: 0x5c0632, A380: 0x5c0632, A319: 0x0f5c5c };
-    const draco = new THREE.DRACOLoader(); draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
-    const gltfLoader = new THREE.GLTFLoader(); gltfLoader.setDRACOLoader(draco);
-    const glbCache = {};
-
-    async function loadGLB(key) {
-      if (key in glbCache) return glbCache[key] ? glbCache[key].clone(true) : null;
-      try {
-        const head = await fetch(MODEL_FILES[key], { method: 'HEAD' });
-        if (!head.ok) throw new Error('fehlt');
-        const gltf = await new Promise((res, rej) => gltfLoader.load(MODEL_FILES[key], res, undefined, rej));
-        glbCache[key] = gltf.scene;
-        return gltf.scene.clone(true);
-      } catch (e) { glbCache[key] = null; return null; }
-    }
-
-    // Einheitliche Groesse + Schwerpunkt als Pivot (sonst fliegt der A380 durch den Boden oder ist winzig)
-    function normalizeModel(root, target, alignZ) {
-      const wrap = new THREE.Group(); wrap.add(root);
-      let box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
-      if (alignZ && size.x > size.z) { root.rotation.y = Math.PI / 2; box = new THREE.Box3().setFromObject(root); size = box.getSize(new THREE.Vector3()); }
-      const s = target / Math.max(size.x, size.y, size.z);
-      root.scale.multiplyScalar(s);
-      box = new THREE.Box3().setFromObject(root);
-      root.position.sub(box.getCenter(new THREE.Vector3()));
-      return wrap;
-    }
-    // Livery: bei neutralen Modellen Leitwerk/Triebwerksringe nach Materialname einfaerben
-    function applyLivery(root, type) {
-      const col = new THREE.Color(LIVERY[type]);
-      root.traverse((o) => {
-        if (!o.isMesh) return;
-        o.castShadow = !LOW_END;
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        const tinted = mats.map((m) => {
-          const n = ((m && m.name) || '') + ' ' + (o.name || '');
-          if (/tail|fin|rudder|vertical|livery_accent|belly|stripe/i.test(n)) { const c = m.clone(); c.color = col.clone(); c.metalness = .15; c.roughness = .35; return c; }
-          return m;
-        });
-        o.material = Array.isArray(o.material) ? tinted : tinted[0];
-      });
-    }
-
-    // ---- prozedurale Fallback-Flugzeuge (Nase zeigt in +Z)
-    const turbineFans = [];
-    function createLiveryFuselageTexture(type) {
-      const c = document.createElement('canvas'); c.width = 1024; c.height = 512; const ctx = c.getContext('2d');
-      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, 1024, 512);
-      if (type === 'A319') { ctx.fillStyle = '#0F5C5C'; ctx.fillRect(0, 330, 1024, 182); ctx.fillStyle = '#38BDF8'; ctx.fillRect(0, 315, 1024, 16); ctx.fillStyle = '#0F5C5C'; ctx.font = 'bold 46px "Plus Jakarta Sans", sans-serif'; ctx.fillText('BANGKOK AIRWAYS', 220, 185); }
-      else { ctx.fillStyle = '#5C0632'; ctx.fillRect(0, 335, 1024, 177); ctx.fillStyle = '#C9B99F'; ctx.fillRect(0, 324, 1024, 11); ctx.fillStyle = '#5C0632'; ctx.font = 'bold 58px "Plus Jakarta Sans", sans-serif'; ctx.fillText('QATAR', 245, 190); }
-      ctx.fillStyle = '#1E293B'; for (let x = 160; x < 860; x += 18) { ctx.fillRect(x, 225, 8, 13); if (type === 'A380') ctx.fillRect(x + 20, 165, 8, 12); }
-      const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
-    }
-    function createLiveryTailTexture(type) {
-      const c = document.createElement('canvas'); c.width = 512; c.height = 512; const ctx = c.getContext('2d');
-      ctx.fillStyle = type === 'A319' ? '#0F5C5C' : '#5C0632'; ctx.fillRect(0, 0, 512, 512);
-      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 13; ctx.lineCap = 'round';
-      if (type === 'A319') { ctx.beginPath(); ctx.moveTo(230, 440); ctx.quadraticCurveTo(250, 310, 275, 200); ctx.stroke(); for (let a = -2.2; a <= 1.2; a += .65) { ctx.beginPath(); ctx.moveTo(275, 200); ctx.quadraticCurveTo(275 + Math.cos(a) * 75, 175 + Math.sin(a) * 40, 275 + Math.cos(a) * 135, 215 + Math.sin(a) * 85); ctx.stroke(); } }
-      else { ctx.beginPath(); ctx.moveTo(190, 360); ctx.quadraticCurveTo(230, 200, 365, 75); ctx.stroke(); ctx.beginPath(); ctx.moveTo(220, 370); ctx.quadraticCurveTo(265, 220, 395, 110); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(235, 325, 42, 26, -.4, 0, Math.PI * 2); ctx.fill(); }
-      return new THREE.CanvasTexture(c);
-    }
-    function buildProceduralAircraft(type) {
-      turbineFans.length = 0;
-      const group = new THREE.Group();
-      const S = { B787: { length: 7.4, radius: .56, span: 7.8, dd: false, sw: true, acc: 0x5c0632 }, A380: { length: 8.6, radius: .8, span: 9.5, dd: true, sw: false, acc: 0x5c0632 }, A319: { length: 5.5, radius: .45, span: 5.3, dd: false, sw: false, acc: 0x0f5c5c } }[type];
-      const bodyMat = new THREE.MeshStandardMaterial({ map: createLiveryFuselageTexture(type), roughness: .25, metalness: .2 });
-      const bodyGeo = new THREE.CylinderGeometry(S.radius, S.radius * .92, S.length, 36); bodyGeo.rotateX(Math.PI / 2); if (S.dd) bodyGeo.scale(.92, 1.24, 1);
-      const fus = new THREE.Mesh(bodyGeo, bodyMat); fus.castShadow = !LOW_END; group.add(fus);
-      const noseGeo = new THREE.SphereGeometry(S.radius, 32, 24); noseGeo.scale(S.dd ? .92 : 1, S.dd ? 1.22 : 1, 2.25);
-      const nose = new THREE.Mesh(noseGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .22 })); nose.position.set(0, -.04, S.length / 2); group.add(nose);
-      const ckGeo = new THREE.CylinderGeometry(S.radius * .78, S.radius * .92, .52, 24, 1, false, -Math.PI * .42, Math.PI * .84); ckGeo.rotateX(Math.PI / 2);
-      const ck = new THREE.Mesh(ckGeo, new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: .1, metalness: .85 })); ck.position.set(0, S.dd ? .36 : .16, S.length / 2 + .28); group.add(ck);
-      const tcGeo = new THREE.ConeGeometry(S.radius * .92, 2.1, 32); tcGeo.rotateX(-Math.PI / 2); if (S.dd) tcGeo.scale(.92, 1.22, 1);
-      const tc = new THREE.Mesh(tcGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .25 })); tc.position.set(0, .06, -S.length / 2 - 1.02); group.add(tc);
-      const fs = new THREE.Shape(); fs.moveTo(0, 0); fs.lineTo(1.75, 0); fs.lineTo(.45, S.dd ? 2.45 : 1.85); fs.lineTo(-.35, S.dd ? 2.45 : 1.85); fs.closePath();
-      const fg = new THREE.ExtrudeGeometry(fs, { depth: .09, bevelEnabled: true, bevelSize: .02, bevelThickness: .02 }); fg.rotateY(Math.PI / 2);
-      const fin = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({ map: createLiveryTailTexture(type), roughness: .32 })); fin.position.set(-.045, S.radius * .78, -S.length / 2 - 1.45); group.add(fin);
-      const wingMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: .28, metalness: .25 });
-      [-1, 1].forEach((side) => {
-        const ws = new THREE.Shape(); ws.moveTo(0, 0); ws.lineTo(S.span / 2, -1.65); ws.lineTo(S.span / 2, -2.15); ws.lineTo(0, -1.55); ws.closePath();
-        const wg = new THREE.ExtrudeGeometry(ws, { depth: .09, bevelEnabled: true, bevelSize: .02, bevelThickness: .02 }); wg.rotateX(Math.PI / 2); if (side === -1) wg.scale(-1, 1, 1);
-        const wing = new THREE.Mesh(wg, wingMat); wing.position.set(0, -.15, .8); wing.rotation.z = side * (S.sw ? .08 : .05); group.add(wing);
-        const tip = new THREE.Mesh(new THREE.BoxGeometry(.06, S.sw ? .42 : .62, .48), new THREE.MeshStandardMaterial({ color: S.acc, roughness: .3 }));
-        tip.position.set(side * (S.span / 2), S.sw ? .14 : .22, -1.05); tip.rotation.z = -side * (S.sw ? .65 : .3); group.add(tip);
-        const hs = new THREE.Mesh(new THREE.BoxGeometry(S.span * .34, .06, .75), wingMat); hs.position.set(side * (S.span * .17), .15, -S.length / 2 - 1.15); hs.rotation.y = -side * .42; group.add(hs);
-        (S.dd ? [1.65, 3.05] : [1.48]).forEach((dist, idx) => {
-          const eg = new THREE.Group();
-          const nac = new THREE.Mesh(new THREE.CylinderGeometry(.32, .27, 1.18, 28), new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: .25, metalness: .3 })); nac.rotation.x = Math.PI / 2; eg.add(nac);
-          const band = new THREE.Mesh(new THREE.CylinderGeometry(.324, .324, .22, 28, 1, true), new THREE.MeshStandardMaterial({ color: S.acc, side: THREE.DoubleSide })); band.rotation.x = Math.PI / 2; band.position.z = .28; eg.add(band);
-          const intake = new THREE.Mesh(new THREE.TorusGeometry(.31, .032, 12, 28), new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: .85, roughness: .15 })); intake.position.z = .58; eg.add(intake);
-          const fan = new THREE.Group(); fan.position.z = .45;
-          const sp = new THREE.Mesh(new THREE.ConeGeometry(.08, .22, 12), new THREE.MeshStandardMaterial({ color: 0x334155 })); sp.rotation.x = Math.PI / 2; fan.add(sp);
-          const bm = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: .7, roughness: .3 });
-          for (let b = 0; b < 10; b++) { const bl = new THREE.Mesh(new THREE.BoxGeometry(.04, .24, .015), bm); bl.rotation.z = (b / 10) * Math.PI * 2; bl.rotation.y = .45; fan.add(bl); }
-          eg.add(fan); turbineFans.push(fan);
-          eg.position.set(side * dist, -.45 + idx * .08, .45 - idx * .55); group.add(eg);
-        });
-      });
-      return group;
-    }
-
-    const aircraftRoot = new THREE.Group(); scene.add(aircraftRoot);
-    let currentAircraft = null, aircraftToken = 0;
-    async function showAircraft(type) {
-      const token = ++aircraftToken;
-      let obj = await loadGLB(type);
-      if (token !== aircraftToken) return;
-      turbineFans.length = 0;
-      if (obj) { applyLivery(obj, type); obj = normalizeModel(obj, MODEL_TARGET[type], true); }
-      else obj = buildProceduralAircraft(type);
-      if (currentAircraft) aircraftRoot.remove(currentAircraft);
-      currentAircraft = obj; aircraftRoot.add(obj);
+    function setPlane(type) {
+      currentType = type;
+      const layer = $('plane-inner'); const base = '/img/planes/' + PLANE_FILES[type];
+      layer.innerHTML = '';
+      const img = new Image(); img.alt = TYPE_LABEL[type]; img.className = 'w-full h-auto'; img.style.filter = 'drop-shadow(0 18px 18px rgba(26,32,44,.2))';
+      img.onerror = () => { if (!img.dataset.png) { img.dataset.png = '1'; img.src = base + '.png'; } else { layer.innerHTML = planeSvg(type); } };
+      img.src = base + '.webp';
+      layer.appendChild(img);
       $('hud-scene-label').textContent = TYPE_LABEL[type] + (type === 'A319' ? ' · Bangkok Airways' : ' · Qatar Airways');
+      if (window.__glb) window.__glb.showAircraft(type);
     }
     window.selectAircraft = function (type) {
-      showAircraft(type);
+      setPlane(type);
       document.querySelectorAll('.fleet-btn').forEach((b) => {
         const active = b.id === 'fleet-btn-' + type, lag = b.id === 'fleet-btn-A319';
         b.className = 'fleet-btn text-left px-4 py-3 rounded-xl border transition-all ' + (active ? (lag ? 'border-lagoon bg-lagoon text-white' : 'border-qatar bg-qatar text-white') + ' shadow-sm' : 'border-hairline bg-shell text-ink hover:border-qatar/50');
         const sub = b.querySelector('div:nth-child(2)'); if (sub) sub.className = 'text-[11px] mt-0.5 ' + (active ? 'opacity-85' : 'text-muted');
       });
     };
-    showAircraft('B787');
+
+    // Wolken: weiche Ebenen, die sich mit unterschiedlicher Geschwindigkeit bewegen
+    const clouds = [];
+    [[8, 14, .9, 'a'], [62, 8, 1.15, 'b'], [30, 46, .8, 'c'], [78, 58, 1.0, 'a'], [12, 72, 1.25, 'b'], [52, 82, .85, 'c']].forEach(([x, y, s, l]) => {
+      const c = document.createElement('div'); c.className = 'cloud'; c.style.cssText = `left:${x}vw;top:${y}vh;transform:scale(${s})`; c.dataset.layer = l;
+      $('cloud-layer').appendChild(c); clouds.push(c);
+    });
+
+    function initParallax() {
+      if (!window.gsap || !window.ScrollTrigger || reduceMotion) { $('plane-layer').style.opacity = 1; return; }
+      gsap.registerPlugin(ScrollTrigger);
+      const hotelTop = () => $('hotel-section').offsetTop - window.innerHeight * 0.4;
+      // Flugzeug: Fly-by von links nach rechts mit Kurvenlage, danach ausblenden
+      gsap.fromTo('#plane-layer', { x: '-30vw', y: '4vh', rotate: -3, scale: .92, opacity: 1 },
+        { x: '58vw', y: '20vh', rotate: 5, scale: 1.12, ease: 'none', scrollTrigger: { trigger: 'body', start: 0, end: () => hotelTop(), scrub: .8 } });
+      gsap.to('#plane-layer', { opacity: 0, scrollTrigger: { trigger: '#hotel-section', start: 'top 85%', end: 'top 45%', scrub: true } });
+      // Wolken
+      const speed = { a: 22, b: 38, c: 56 };
+      clouds.forEach((c) => gsap.to(c, { x: () => '-' + speed[c.dataset.layer] + 'vw', ease: 'none', scrollTrigger: { trigger: 'body', start: 0, end: 'max', scrub: true } }));
+      // Resort-Foto blendet im Hotelbereich sanft ein und zoomt leicht
+      gsap.fromTo('#resort-layer', { opacity: 0, scale: 1.12 }, { opacity: 1, scale: 1, ease: 'none', scrollTrigger: { trigger: '#hotel-section', start: 'top 85%', end: 'top 20%', scrub: true } });
+      gsap.to('#resort-layer', { yPercent: -6, ease: 'none', scrollTrigger: { trigger: '#hotel-section', start: 'top bottom', end: 'bottom top', scrub: true } });
+    }
+
+    // Resort-Bild: bevorzugt ein eigenes Villa-Foto, sonst das Hotelfoto
+    (function () { const t = new Image(); t.onload = () => { $('resort-layer').style.backgroundImage = "url('/img/villa/santiburi-deluxe-garden-villa.webp')"; }; t.src = '/img/villa/santiburi-deluxe-garden-villa.webp'; })();
 
     // =========================================================================
-    // 4. RESORT-SZENE: VILLA (GLB ODER PROZEDURAL), DACH-TOGGLE
+    // 3. OPTIONAL: ECHTE .glb-MODELLE (GLTFLoader + DRACOLoader). Ohne Dateien wird nichts geladen.
+    //    Dateien nach frontend/models/ legen: qatar-a380.glb, qatar-b787.glb, bangkok-a319.glb, santiburi-villa.glb
     // =========================================================================
-    const resortRoot = new THREE.Group(); scene.add(resortRoot); resortRoot.visible = false;
-    const lagoonSea = new THREE.Mesh(new THREE.PlaneGeometry(180, 90), new THREE.MeshStandardMaterial({ color: 0x16a39e, roughness: .22, metalness: .12 })); lagoonSea.rotation.x = -Math.PI / 2; lagoonSea.position.set(0, -1.2, -32); resortRoot.add(lagoonSea);
-    const ground = new THREE.Mesh(new THREE.CylinderGeometry(18, 18, .4, 48), new THREE.MeshStandardMaterial({ color: 0xdfead8, roughness: .9 })); ground.position.set(0, -1.05, 0); ground.receiveShadow = !LOW_END; resortRoot.add(ground);
-    const villaRoofs = [], poolMeshes = [];
+    const MODEL_FILES = { B787: '/models/qatar-b787.glb', A380: '/models/qatar-a380.glb', A319: '/models/bangkok-a319.glb', villa: '/models/santiburi-villa.glb' };
+    const MODEL_TARGET = { B787: 8.4, A380: 9.8, A319: 6.2, villa: 7.4 };
+    const LIVERY = { B787: 0x5c0632, A380: 0x5c0632, A319: 0x0f5c5c };
 
-    function proceduralVilla(withGarden) {
-      const v = new THREE.Group();
-      const lime = new THREE.MeshStandardMaterial({ color: 0xfbf9f5, roughness: .55 }), teak = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: .5 });
-      const roofMat = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: .65, flatShading: true });
-      const glass = new THREE.MeshPhysicalMaterial({ color: 0x7dd3fc, transparent: true, opacity: .38, roughness: .08 });
-      const water = new THREE.MeshStandardMaterial({ color: 0x14b8a6, emissive: 0x0d9488, emissiveIntensity: .25, roughness: .12 });
-      const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); v.add(m); return m; };
-      add(new THREE.BoxGeometry(6.2, .2, 5.2), teak, 0, -.75, .3).receiveShadow = !LOW_END;
-      add(new THREE.BoxGeometry(4.6, 2, .22), lime, 0, .3, -2.1); add(new THREE.BoxGeometry(.22, 2, 3), lime, -2.2, .3, -.7); add(new THREE.BoxGeometry(.22, 2, 3), lime, 2.2, .3, -.7);
-      add(new THREE.BoxGeometry(4.2, .1, 2.8), teak, 0, -.62, -.7);
-      add(new THREE.BoxGeometry(1.65, .35, 1.85), teak, -.95, -.4, -1); add(new THREE.BoxGeometry(1.55, .22, 1.75), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .7 }), -.95, -.18, -1);
-      add(new THREE.BoxGeometry(1.2, .12, .35), new THREE.MeshStandardMaterial({ color: 0x0f5c5c, roughness: .6 }), -.95, -.05, -1.65);
-      add(new THREE.BoxGeometry(1.35, .38, .75), new THREE.MeshStandardMaterial({ color: 0xe6e1d6, roughness: .7 }), 1.1, -.38, -1.3);
-      add(new THREE.BoxGeometry(4.2, 1.85, .06), glass, 0, .25, .78);
-      const roof = new THREE.Group();
-      const lo = new THREE.Mesh(new THREE.ConeGeometry(3.85, 1.15, 4), roofMat); lo.rotation.y = Math.PI / 4; lo.scale.set(1.18, 1, .88); lo.position.set(0, 1.85, -.7); roof.add(lo);
-      const up = new THREE.Mesh(new THREE.ConeGeometry(2.1, .88, 4), roofMat); up.rotation.y = Math.PI / 4; up.scale.set(1.15, 1, .85); up.position.set(0, 2.55, -.7); roof.add(up);
-      v.add(roof); villaRoofs.push(roof);
-      add(new THREE.BoxGeometry(3.1, .24, 1.6), lime, -.9, -.68, 1.95); poolMeshes.push(add(new THREE.BoxGeometry(2.85, .26, 1.36), water, -.9, -.66, 1.95));
-      [1.3, 2.1].forEach((lx) => add(new THREE.BoxGeometry(.55, .2, 1.35), lime, lx, -.58, 1.85));
-      if (withGarden) {
-        const fm = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: .55, side: THREE.DoubleSide });
-        [[-3.7, -2.3, 3.5], [3.8, -1.9, 3.9], [-3.9, 2.3, 3.1], [3.7, 2.4, 3.4]].forEach(([px, pz, h]) => {
-          const p = new THREE.Group(); const tr = new THREE.Mesh(new THREE.CylinderGeometry(.08, .14, h, 8), teak); tr.position.y = h / 2 - .85; p.add(tr);
-          for (let f = 0; f < 7; f++) { const fr = new THREE.Mesh(new THREE.ConeGeometry(.42, 1.45, 4), fm); fr.position.y = h - .85; fr.rotation.z = Math.PI / 2.6; fr.rotation.y = (f / 7) * Math.PI * 2; p.add(fr); }
-          p.position.set(px, 0, pz); v.add(p);
-        });
+    (async function maybeInitGlb() {
+      const present = {};
+      await Promise.all(Object.entries(MODEL_FILES).map(async ([k, u]) => { try { present[k] = (await fetch(u, { method: 'HEAD' })).ok; } catch (e) { present[k] = false; } }));
+      if (!Object.values(present).some(Boolean)) return;       // keine Modelle -> reine Parallax-Buehne
+      const load = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+      await load('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+      await load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js');
+      await load('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js');
+
+      const LOW = (navigator.hardwareConcurrency || 4) <= 4 || /Mobi|Android/i.test(navigator.userAgent);
+      const cv = $('three-canvas'); cv.classList.remove('hidden');
+      const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: !LOW, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOW ? 1.5 : 2)); renderer.setSize(innerWidth, innerHeight);
+      renderer.shadowMap.enabled = !LOW; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08;
+      const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, .1, 220); cam.position.set(0, 2.5, 13.5);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xe8dfd1, .95));
+      const sun = new THREE.DirectionalLight(0xfff8eb, 1.35); sun.position.set(14, 22, 16); sun.castShadow = !LOW; sun.shadow.mapSize.set(1024, 1024); scene.add(sun);
+      const draco = new THREE.DRACOLoader(); draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.4.1/');
+      const loader = new THREE.GLTFLoader(); loader.setDRACOLoader(draco);
+      const cache = {};
+      const get = async (k) => { if (!present[k]) return null; if (!cache[k]) cache[k] = await new Promise((res, rej) => loader.load(MODEL_FILES[k], (g) => res(g.scene), undefined, rej)); return cache[k].clone(true); };
+      const normalize = (root, target, alignZ) => {
+        const wrap = new THREE.Group(); wrap.add(root);
+        let box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
+        if (alignZ && size.x > size.z) { root.rotation.y = Math.PI / 2; box = new THREE.Box3().setFromObject(root); size = box.getSize(new THREE.Vector3()); }
+        root.scale.multiplyScalar(target / Math.max(size.x, size.y, size.z));
+        box = new THREE.Box3().setFromObject(root); root.position.sub(box.getCenter(new THREE.Vector3())); return wrap;
+      };
+      const livery = (root, type) => { const col = new THREE.Color(LIVERY[type]);
+        root.traverse((o) => { if (!o.isMesh) return; o.castShadow = !LOW; const ms = Array.isArray(o.material) ? o.material : [o.material];
+          const out = ms.map((m) => (/tail|fin|rudder|vertical|stripe|belly/i.test((m.name || '') + ' ' + o.name) ? Object.assign(m.clone(), { color: col.clone() }) : m)); o.material = Array.isArray(o.material) ? out : out[0]; }); };
+
+      const aircraft = new THREE.Group(); scene.add(aircraft);
+      const resort = new THREE.Group(); scene.add(resort); resort.visible = false;
+      let roofs = [], token = 0, villaObj = null;
+      window.__glb = {
+        async showAircraft(type) {
+          const t = ++token; aircraft.clear();
+          let o = await get(type); if (t !== token) return;
+          const img = $('plane-layer'); img.style.visibility = o ? 'hidden' : 'visible';
+          if (!o) return; livery(o, type); aircraft.add(normalize(o, MODEL_TARGET[type], true));
+        }
+      };
+      window.__glb.showAircraft(currentType);
+      const v = await get('villa');
+      if (v) {
+        villaObj = normalize(v, MODEL_TARGET.villa, false); resort.add(villaObj);
+        const box = new THREE.Box3().setFromObject(villaObj), thr = box.min.y + (box.max.y - box.min.y) * .62;
+        villaObj.traverse((o) => { if (o.isMesh) { const b = new THREE.Box3().setFromObject(o); if (/roof|dach|thatch|ceiling/i.test(o.name) || b.min.y > thr) roofs.push(o); } });
+        $('villa-controls').hidden = false;
+        window.setVillaView = function (mode) {
+          document.querySelectorAll('.villa-btn').forEach((b) => { b.className = 'villa-btn px-3 py-2.5 rounded-xl text-xs font-semibold bg-alabaster text-ink border border-hairline hover:border-lagoon transition-all'; });
+          const a = $('villa-btn-' + mode); if (a) a.className = 'villa-btn px-3 py-2.5 rounded-xl text-xs font-semibold bg-lagoon text-white border border-lagoon transition-all';
+          roofs.forEach((m) => (m.visible = mode !== 'interior')); villaObj.scale.setScalar(mode === 'ensemble' ? .82 : mode === 'interior' ? 1.05 : 1);
+        };
       }
-      return v;
-    }
-    // Dach-Meshes eines echten GLB gruppieren (Name oder obere Bounding-Box-Region)
-    function collectGlbRoofs(root) {
-      const box = new THREE.Box3().setFromObject(root), h = box.max.y - box.min.y, thr = box.min.y + h * 0.62;
-      const found = [];
-      root.traverse((o) => { if (!o.isMesh) return; const b = new THREE.Box3().setFromObject(o); if (/roof|dach|thatch|ceiling/i.test(o.name) || b.min.y > thr) found.push(o); });
-      return found;
-    }
-    let mainVilla = proceduralVilla(true), sideVillas = new THREE.Group(), glbRoofMeshes = null;
-    resortRoot.add(mainVilla);
-    function buildSideVillas() {
-      sideVillas.clear();
-      [-5.6, 5.6].forEach((x) => { const v = mainVillaClone(); v.scale.setScalar(.75); v.position.set(x, -.15, -1.5); sideVillas.add(v); });
-      sideVillas.visible = false; resortRoot.add(sideVillas);
-    }
-    let usingGlbVilla = false, villaGlbTemplate = null;
-    function mainVillaClone() { return usingGlbVilla ? villaGlbTemplate.clone(true) : proceduralVilla(false); }
-    (async function initVilla() {
-      const glb = await loadGLB('villa');
-      if (glb) {
-        usingGlbVilla = true; villaRoofs.length = 0;
-        villaGlbTemplate = normalizeModel(glb, MODEL_TARGET.villa, false);
-        resortRoot.remove(mainVilla); mainVilla = villaGlbTemplate.clone(true); resortRoot.add(mainVilla);
-        glbRoofMeshes = collectGlbRoofs(mainVilla);
-      }
-      buildSideVillas();
+      let drag = false, last = { x: 0, y: 0 }, yaw = 0, pitch = 0;
+      cv.addEventListener('pointerdown', (e) => { drag = true; last = { x: e.clientX, y: e.clientY }; });
+      addEventListener('pointermove', (e) => { if (!drag) return; yaw += (e.clientX - last.x) * .007; pitch = Math.max(-.55, Math.min(.55, pitch + (e.clientY - last.y) * .005)); last = { x: e.clientX, y: e.clientY }; });
+      addEventListener('pointerup', () => { drag = false; });
+      addEventListener('resize', () => { cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+      (function loop() {
+        requestAnimationFrame(loop);
+        const y = scrollY, thr = $('hotel-section').offsetTop - innerHeight * .45, inResort = y >= thr && !!villaObj;
+        aircraft.visible = !inResort && aircraft.children.length > 0; resort.visible = inResort;
+        const p = Math.min(1, y / Math.max(1, thr));
+        aircraft.position.set((innerWidth >= 1024 ? 2.6 : .4) - 3.6 + p * 6.8, 1.35 - Math.sin(p * Math.PI) * .9, 1.2 + Math.sin(p * Math.PI) * 1.4);
+        aircraft.rotation.set(.08 + pitch, .72 - p * 1.05 + yaw, Math.sin(p * Math.PI * 2) * .24);
+        resort.position.set(innerWidth >= 1024 ? 2.5 : 0, -.4, 0); resort.rotation.set(.16 + pitch * .5, -.5 + yaw + (drag ? 0 : performance.now() * .00008), 0);
+        renderer.render(scene, cam);
+      })();
     })();
-    resortRoot.position.set(2.4, .1, 0); resortRoot.rotation.y = -.45;
-
-    window.setVillaView = function (mode) {
-      document.querySelectorAll('.villa-btn').forEach((b) => { b.className = 'villa-btn px-3 py-2.5 rounded-xl text-xs font-semibold bg-alabaster text-ink border border-hairline hover:border-lagoon transition-all'; });
-      const a = $('villa-btn-' + mode); if (a) a.className = 'villa-btn px-3 py-2.5 rounded-xl text-xs font-semibold bg-lagoon text-white border border-lagoon transition-all';
-      const roofsVisible = mode !== 'interior';
-      if (usingGlbVilla && glbRoofMeshes) glbRoofMeshes.forEach((m) => (m.visible = roofsVisible)); else villaRoofs.forEach((r) => (r.visible = roofsVisible));
-      sideVillas.visible = mode === 'ensemble';
-      mainVilla.scale.setScalar(mode === 'interior' ? 1.05 : mode === 'ensemble' ? .82 : 1);
-    };
 
     // =========================================================================
-    // 5. INTERAKTION & SCROLL-CHOREOGRAFIE
+    // 4. START
     // =========================================================================
-    let isDragging = false, prev = { x: 0, y: 0 }, userYaw = 0, userPitch = 0, userZoom = 0;
-    const startDrag = (x, y) => { isDragging = true; prev = { x, y }; };
-    const moveDrag = (x, y) => { if (!isDragging) return; userYaw += (x - prev.x) * .007; userPitch = Math.max(-.55, Math.min(.55, userPitch + (y - prev.y) * .005)); prev = { x, y }; };
-    const endDrag = () => { isDragging = false; };
-    canvas.addEventListener('mousedown', (e) => startDrag(e.clientX, e.clientY)); window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY)); window.addEventListener('mouseup', endDrag);
-    canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 1) startDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
-    window.addEventListener('touchmove', (e) => { if (e.touches.length === 1) moveDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
-    window.addEventListener('touchend', endDrag);
-    canvas.addEventListener('wheel', (e) => { if (e.ctrlKey) { e.preventDefault(); userZoom = Math.max(-3, Math.min(3, userZoom + e.deltaY * .01)); } }, { passive: false });
-
-    const cSky = new THREE.Color(skyColorHex), cLagoon = new THREE.Color(lagoonSkyHex);
-    function handleScroll() {
-      const y = window.scrollY, hs = $('hotel-section'), thr = hs.offsetTop - window.innerHeight * .45, inResort = y >= thr;
-      const blend = Math.min(1, Math.max(0, (y - (thr - 220)) / 320)), bg = cSky.clone().lerp(cLagoon, blend);
-      scene.background.copy(bg); scene.fog.color.copy(bg);
-      skyEnvironment.visible = !inResort; aircraftRoot.visible = !inResort; resortRoot.visible = inResort;
-      if (!inResort) {
-        const p = Math.min(1, Math.max(0, y / Math.max(1, thr))), bx = window.innerWidth >= 1024 ? 2.6 : .4;
-        aircraftRoot.position.set(bx - 3.6 + p * 6.8, 1.35 - Math.sin(p * Math.PI) * .9, 1.2 + Math.sin(p * Math.PI) * 1.4 + userZoom);
-        aircraftRoot.rotation.set(.08 + userPitch, .72 - p * 1.05 + userYaw, Math.sin(p * Math.PI * 2) * .24);
-      } else {
-        const p = Math.min(1, Math.max(0, (y - thr) / (window.innerHeight * 1.1)));
-        resortRoot.position.set(window.innerWidth >= 1024 ? 2.5 : 0, window.innerWidth >= 1024 ? -.15 : -1.2, userZoom);
-        resortRoot.rotation.set(.16 + userPitch * .5, -.5 + p * .85 + userYaw, 0);
-      }
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
-    const clock = new THREE.Clock();
-    function animate() {
-      requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
-      if (aircraftRoot.visible) {
-        aircraftRoot.position.y += Math.sin(t * 2) * .0025;
-        turbineFans.forEach((f) => { f.rotation.z += .28; });
-        clouds.forEach((c, i) => { c.position.x -= .006 + (i % 3) * .002; if (c.position.x < -18) c.position.x = 18; });
-      }
-      if (resortRoot.visible) { if (!isDragging) resortRoot.rotation.y += .002; poolMeshes.forEach((pm) => { pm.material.emissiveIntensity = .22 + Math.sin(t * 2.4) * .08; }); }
-      renderer.render(scene, camera);
-    }
-    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); handleScroll(); });
-
-    loadAll().then(() => { handleScroll(); });
-    window.addEventListener('load', () => { handleScroll(); animate(); });
+    window.addEventListener('load', () => { initParallax(); setPlane('B787'); });
+    loadAll();
   </script>
 </body>
 </html>
