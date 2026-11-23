@@ -1036,6 +1036,7 @@ async function loadHealth() {
 async function loadGuarantee() {
   const g = await api("/api/guarantee");
   const sec = $("#guaranteeSection");
+  document.body.classList.toggle("guarantee-mode", !!g.active);   // blendet alles ausser der Garantie-Uebersicht aus
   if (!g.active) { sec.hidden = true; return; }
   sec.hidden = false;
   // Alte Einzel-Bereiche ersetzt diese Uebersicht

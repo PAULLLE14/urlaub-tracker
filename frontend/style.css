@@ -297,3 +297,6 @@ tr.win td { background: var(--coral-soft); }
 .trip-tile.tt-good { border-color: #2e7d32; background: #e8f5e9; }
 .trip-tile.tt-good .tt-value { color: #1e6b3a; }
 @media (max-width: 800px) { .trip-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* Hotel gebucht: nur die Agoda-Preisgarantie-Uebersicht zeigen */
+body.guarantee-mode main > section:not(#guaranteeSection) { display: none !important; }
