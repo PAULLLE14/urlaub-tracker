@@ -174,7 +174,7 @@
     const TYPE_OF = (ac) => /787/.test(ac) ? 'B787' : /380/.test(ac) ? 'A380' : /319/.test(ac) ? 'A319' : 'B787';
     const TYPE_LABEL = { B787: 'Boeing 787-9', A380: 'Airbus A380-800', A319: 'Airbus A319' };
     // Echte 3D-Modelle: Dateien in frontend/models/ ablegen (siehe models/README.md)
-    const MODEL = { B787: '/models/qatar-b787.glb', A380: '/models/qatar-a380.glb', A319: '/models/bangkok-a319.glb' };
+    const MODEL = { B787: '/models/qatar-b787.glb?v=2', A380: '/models/qatar-a380.glb', A319: '/models/bangkok-a319.glb?v=2' };
     const LIVERY = { B787: [0.36, 0.02, 0.2, 1], A380: [0.36, 0.02, 0.2, 1], A319: [0.06, 0.36, 0.36, 1] };   // Qatar-Burgund / Bangkok-Tuerkis
     const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let CREDITS = {}, G = null, currentType = 'B787';
