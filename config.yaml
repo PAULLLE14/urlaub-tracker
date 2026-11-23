@@ -89,6 +89,11 @@ trip:
     price_total: 7183.36
     outbound_date: "2027-05-14"
     return_date: "2027-05-28"
+    origin: FRA
+    destination: USM
+    airlines: ["Qatar Airways"]
+    outbound_info: "Flug QR 068"
+    outbound_time: "17:15"
     note: "Gebucht - fester Preis fuer alle 8 Personen"
 
   # Hotel gebucht (23.11.26) bei Agoda: 3 x Deluxe Garten Villa, 8 Personen, 15.-28.05.2027,

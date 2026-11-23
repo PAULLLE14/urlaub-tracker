@@ -1046,6 +1046,7 @@ async function loadGuarantee() {
   const saving = g.saving || 0;
   const days = Math.max(0, Math.ceil((new Date(g.deadline + "T23:59:00") - new Date()) / 86400000));
   const f = g.flight_detail || {};
+  const cities = { FRA: "Frankfurt", USM: "Koh Samui", DOH: "Doha", MUC: "München", BKK: "Bangkok" };
   const outDay = f.outbound_date ? fmtDay(f.outbound_date) : "";
   const arrIso = f.outbound_date ? new Date(new Date(f.outbound_date + "T12:00:00").getTime() + 86400000).toISOString().slice(0, 10) : "";
   const retDay = f.return_date ? fmtDay(f.return_date) : "";
@@ -1089,9 +1090,9 @@ async function loadGuarantee() {
     <article class="ticket">
       <div class="ticket-head"><span>✈ Flug</span><span class="tag ok">gebucht</span></div>
       <div class="route">
-        <div class="stop"><div class="code">${esc(f.origin || "ABFLUG")}</div><div class="when">${outDay ? esc(fmtDay(f.outbound_date, { weekday: "short", day: "2-digit", month: "short" })) : ""}</div></div>
+        <div class="stop"><div class="code">${esc(f.origin || "ABFLUG")}</div><div class="city">${esc(cities[f.origin] || "")}</div><div class="when">${outDay ? esc(fmtDay(f.outbound_date, { weekday: "short", day: "2-digit", month: "short" })) + (f.outbound_time ? " · " + esc(f.outbound_time) + " Uhr" : "") : ""}</div></div>
         <div class="line"><span class="plane">✈</span><span class="dur">${flightDays != null ? flightDays + " Tage" : ""}</span></div>
-        <div class="stop right"><div class="code">${esc(f.destination || "USM")}</div><div class="when">${arrIso ? "Ankunft " + esc(fmtDay(arrIso, { weekday: "short", day: "2-digit", month: "short" })) : ""}</div></div>
+        <div class="stop right"><div class="code">${esc(f.destination || "USM")}</div><div class="city">${esc(cities[f.destination || "USM"] || "")}</div><div class="when">${arrIso ? "Ankunft " + esc(fmtDay(arrIso, { weekday: "short", day: "2-digit", month: "short" })) : ""}</div></div>
       </div>
       <div class="ticket-rows">
         <div><span>Hinflug</span><b>${outDay ? esc(outDay) : "–"}</b></div>

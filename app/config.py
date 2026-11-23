@@ -49,6 +49,8 @@ class BookedFlight(BaseModel):
     outbound_info: str = ""              # optional, z. B. "FRA 21:10 -> USM 16:40 (+1)"
     return_info: str = ""                # optional, z. B. "USM 18:30 -> FRA 07:15"
     booking_ref: str = ""                # optional
+    outbound_time: str = ""              # optional, z. B. "17:15" (Abflug Ortszeit)
+    return_time: str = ""
 
 
 class ReferenceOffer(BaseModel):

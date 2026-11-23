@@ -377,3 +377,5 @@ body.guarantee-mode #guaranteeSection > h2 { display: none; }
 .ft-main { background: linear-gradient(135deg, var(--teal-soft), #f4faf8); border-color: var(--teal) !important; }
 .ft-main .ft-value { color: #17594f; }
 .bar span { background: linear-gradient(90deg, #5fb3a5, var(--teal)); }
+
+.route .city { font-size: 13px; font-weight: 600; color: var(--body); margin-top: -2px; }
