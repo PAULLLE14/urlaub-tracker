@@ -377,6 +377,9 @@ class DigestCfg(BaseModel):
 class AlertsCfg(BaseModel):
     enabled: bool = True
     booked_hotel_price: float | None = None   # gebuchter Hotelpreis (Preisgarantie-Wächter)
+    # Agoda-Preisgarantie (agoda.com/info/agoda-policies.html, 23.11.26): zaehlt NUR ein Preis auf
+    # diesen "Other Platforms". Ist die Liste gesetzt, alarmiert der Hotel-Alarm nur dafuer.
+    guarantee_platforms: list[str] = []
     daily_digest: DigestCfg = DigestCfg()
     thresholds: AlertThresholds = AlertThresholds()
     cooldown_hours: float = 12

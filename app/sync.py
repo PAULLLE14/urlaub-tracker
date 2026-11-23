@@ -192,6 +192,19 @@ def start() -> None:
 
 
 # --- Empfaenger-Seite ------------------------------------------------------
+def eligible_best(session, run_id: int, platforms: list[str]) -> float | None:
+    """Guenstigster Einzelanbieter-Preis (3 Zimmer, eine Buchung) auf einer der anerkannten
+    Plattformen; Kombinationen (Mix) und andere Anbieter zaehlen fuer die Garantie nicht."""
+    names = [p.lower() for p in platforms]
+    prices = []
+    for r in session.scalars(select(HotelOfferRow).where(HotelOfferRow.run_id == run_id)):
+        if not r.ok or not r.price_total or r.is_reference or r.source.startswith("Mix:"):
+            continue
+        if any(n in r.source.lower() for n in names):
+            prices.append((r.raw or {}).get("price_total_incl_fees_estimate") or r.price_total)
+    return min(prices) if prices else None
+
+
 def alert_for_run(session, run_id: int) -> list[str]:
     """Preisalarm fuer einen frisch importierten Lauf (Mail geht vom Empfaenger aus)."""
     from .config import get_config
@@ -200,9 +213,14 @@ def alert_for_run(session, run_id: int) -> list[str]:
     snap = session.scalar(select(BestSnapshot).where(BestSnapshot.run_id == run_id))
     if snap is None:
         return []
-    values = {"flight_total": snap.flight_total, "hotel_total": snap.hotel_total,
+    cfg = get_config()
+    hotel_total = snap.hotel_total
+    if cfg.alerts.guarantee_platforms:
+        # Preisgarantie-Waechter: nur Preise auf anerkannten Plattformen zaehlen
+        hotel_total = eligible_best(session, run_id, cfg.alerts.guarantee_platforms)
+    values = {"flight_total": snap.flight_total, "hotel_total": hotel_total,
               "separate_total": snap.separate_total, "package_total": snap.package_total}
-    return maybe_alert(session, get_config(), get_secrets(), values, snap.verdict or {})
+    return maybe_alert(session, cfg, get_secrets(), values, snap.verdict or {})
 
 
 def receive_poll(progress: dict | None, sched: dict | None) -> bool:

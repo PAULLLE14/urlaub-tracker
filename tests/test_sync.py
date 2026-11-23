@@ -99,3 +99,22 @@ def test_receiver_checks_alerts_after_import(monkeypatch, tmp_path):
     assert sync.alert_for_run(s, new_id) == ["ALERT"]
     s.close()
     assert seen["values"]["hotel_total"] == 9000.0
+
+
+def test_eligible_best_counts_only_guarantee_platforms(monkeypatch, tmp_path):
+    from app.models import CheckRun, HotelOfferRow
+    from app.sync import eligible_best
+
+    _fresh_db(monkeypatch, tmp_path / "g.db")
+    s = db.get_session()
+    r = CheckRun(status="ok")
+    s.add(r)
+    s.flush()
+    for src, price in [("Super.com (Google)", 9000.0), ("Trip.com (Google)", 10920.0),
+                       ("Traveloka.com (Google)", 11279.0), ("Mix: Trip.com (2×3er) + X (1×2er)", 8000.0),
+                       ("check24", 9500.0)]:
+        s.add(HotelOfferRow(run_id=r.id, source=src, ok=True, price_total=price))
+    s.commit()
+    assert eligible_best(s, r.id, ["Booking.com", "Trip.com", "Traveloka"]) == 10920.0
+    assert eligible_best(s, r.id, ["Expedia"]) is None
+    s.close()

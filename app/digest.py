@@ -187,7 +187,9 @@ def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, 
         lead = "Preisalarm:"
         booked = cfg.alerts.booked_hotel_price
         rest = (f"Das sind {eur(booked - alert['price'])} weniger als dein gebuchter Preis von {eur(booked)} "
-                f"- Preisgarantie bei Agoda prüfen (Zimmertyp, Stornobedingungen und Frist beachten)."
+                f"- Preisgarantie bei Agoda prüfen: Der Preis muss auf einer anerkannten Plattform stehen "
+                f"(z. B. Booking.com, Expedia, Hotels.com, Trip.com, Traveloka), gleicher Zimmertyp, gleiche "
+                f"oder flexiblere Stornierung. Antrag bis 23:59 Uhr am Tag vor dem Check-in."
                 if booked else
                 f"Der Hotelpreis liegt {eur(alert['limit'] - alert['price'])} unter deiner "
                 f"Schwelle von {eur(alert['limit'])}.")
