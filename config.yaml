@@ -295,6 +295,8 @@ trend:
 alerts:
   enabled: true               # nur Preisgarantie-Alarm: Hotel >= 160 EUR unter dem Agoda-Preis
   booked_hotel_price: 8977.68   # Agoda-Buchung 23.11.26 (334.358,31 THB), nicht rueckerstattbar
+  booked_hotel_thb: 334358.31
+  target_total: 16000           # Ziel: Flug + Hotel unter 16.000 EUR
   # Agoda-Preisgarantie gilt nur fuer diese Plattformen (Agoda-Richtlinien, Stand 23.11.26):
   guarantee_platforms: [Booking.com, Trip.com, Ctrip, Expedia, Hotels.com, Priceline, Traveloka, MakeMyTrip, Orbitz, Tiket.com, Yanolja, Rakuten, Jalan]
   daily_digest:

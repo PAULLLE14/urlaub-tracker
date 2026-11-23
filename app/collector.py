@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from . import live_progress
+from . import guarantee, live_progress
 from .config import get_config, get_secrets
 from .database import get_session, init_db
 from .logging_setup import get_logger, setup_logging
@@ -343,6 +343,8 @@ def light_probe() -> dict:
     ci, co = hotel_date_combos(cfg)[0]
     offers = google_hotels.fetch_providers(cfg, ci, co, proxy=sec.flights_proxy)
     ok = [o for o in offers if o.ok and o.price_total]
+    if guarantee.active(cfg):
+        ok = [o for o in ok if guarantee.is_eligible(o.source, cfg.alerts.guarantee_platforms)]
     best = min(ok, key=lambda o: o.price_total) if ok else None
 
     baseline = None

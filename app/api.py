@@ -118,6 +118,15 @@ def runs(limit: int = 30):
         s.close()
 
 
+@router.get("/guarantee")
+def guarantee_status():
+    s = get_session()
+    try:
+        return queries.guarantee_payload(s, get_config())
+    finally:
+        s.close()
+
+
 @router.get("/links")
 def links():
     """Fertige Google-Hotels-Suche (Santiburi, gebuchter Zeitraum, 2 Personen)."""

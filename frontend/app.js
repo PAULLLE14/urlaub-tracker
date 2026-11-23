@@ -1032,10 +1032,69 @@ async function loadHealth() {
   }
 }
 
+/* ---------------- Agoda-Preisgarantie ---------------- */
+async function loadGuarantee() {
+  const g = await api("/api/guarantee");
+  const sec = $("#guaranteeSection");
+  if (!g.active) { sec.hidden = true; return; }
+  sec.hidden = false;
+  // Alte Einzel-Bereiche ersetzt diese Uebersicht
+  for (const id of ["#bestHotel", "#cheapestFlight"]) { const n = $(id); if (n && n.closest("section")) n.closest("section").hidden = true; }
+  const box = $("#guaranteeBox");
+  box.innerHTML = "";
+  const dl = new Date(g.deadline + "T23:59:00").toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const best = g.best;
+  const saving = g.saving || 0;
+  const tile = (label, value, sub, cls) =>
+    `<div class="trip-tile ${cls || ""}"><div class="tt-label">${label}</div><div class="tt-value">${value}</div><div class="tt-sub">${sub || ""}</div></div>`;
+  const toTarget = g.to_target;
+  const grid = el("div");
+  grid.className = "trip-tiles";
+  grid.innerHTML =
+    tile("Flug · gebucht ✓", money2(g.flight), g.flight ? `${money2(g.flight / g.persons)} p. P.` : "") +
+    tile("Hotel · gebucht ✓ (Agoda)", money2(g.booked), g.booked_thb ? `${g.booked_thb.toLocaleString("de-DE", { minimumFractionDigits: 2 })} ฿` : "") +
+    tile("Gesamtbetrag", money2(g.total), (g.per_person ? `${money2(g.per_person)} p. P.` : "") +
+      (toTarget != null ? ` · ${toTarget > 0 ? money2(toTarget) + " über" : money2(Math.abs(toTarget)) + " unter"} dem Ziel (${money(g.target_total)})` : ""), "tt-total") +
+    tile("Ersparnis durch Preisgarantie", money2(saving),
+      best ? (saving > 0 ? `${best.source} ist ${money2(saving)} günstiger – Antrag möglich` : `bester anerkannter Preis heute: ${money2(best.total)} (${best.source})`)
+           : "keine anerkannte Plattform verfügbar", saving > 0 ? "tt-good" : "tt-muted");
+  box.appendChild(grid);
+
+  const info = el("p");
+  info.className = "small muted";
+  info.style.marginTop = "12px";
+  info.innerHTML =
+    `<b>So funktioniert die Garantie:</b> Findest du dieselbe Buchung (gleicher Zimmer- und Bettentyp, 8 Gäste, gleiche oder flexiblere Stornierung, Preis mit Steuern und Gebühren) ` +
+    `auf einer anerkannten Plattform günstiger, gleicht Agoda aus oder schreibt die Differenz als AgodaCash gut. ` +
+    `Antrag bis <b>${dl}, 23:59 Uhr</b> (Ortszeit Hotel) mit Buchungsnummer, Link und bis zu 3 Screenshots. ` +
+    `Anerkannt: ${g.platforms.join(", ")}. Nicht anerkannt: Mitglieds-, Code- und Kreditkartenpreise, Aktionen ` +
+    `und alles über Super.com, Stayforlong, CHECK24 oder Google. Mail-Alarm ab ${g.threshold ? money2(g.threshold) : "–"} (160 € unter deinem Preis).`;
+  box.appendChild(info);
+
+  if (g.offers.length) {
+    const tbl = el("table");
+    tbl.innerHTML = "<thead><tr><th>Anerkannte Plattform</th><th>Gesamt (3 Zimmer)</th><th>p. P./Nacht</th><th>Abstand zu deinem Preis</th></tr></thead>";
+    const tb = el("tbody");
+    for (const o of g.offers.slice(0, 8)) {
+      const tr = el("tr");
+      const a = el("a"); a.textContent = o.source; if (o.url) { a.href = o.url; a.target = "_blank"; a.rel = "noopener"; }
+      const td0 = el("td"); td0.appendChild(a);
+      tr.appendChild(td0);
+      for (const v of [money2(o.total), money2(o.per_person_night), (o.total - g.booked >= 0 ? "+" : "−") + money2(Math.abs(o.total - g.booked))]) {
+        const td = el("td"); td.textContent = v; tr.appendChild(td);
+      }
+      tb.appendChild(tr);
+    }
+    tbl.appendChild(tb);
+    const wrap = el("div"); wrap.className = "table-wrap"; wrap.appendChild(tbl);
+    box.appendChild(wrap);
+  }
+}
+
 /* ---------------- refresh orchestration ---------------- */
 async function refreshAll() {
   const jobs = {
-    Status: loadStatus, Zusammenfassung: loadSummary, Verlauf: loadHistory,
+    Status: loadStatus, Garantie: loadGuarantee, Zusammenfassung: loadSummary, Verlauf: loadHistory,
     Flüge: loadFlights, "ITA Matrix": loadItaMatrix, Hotels: loadHotels, Jahresverlauf: loadRateCalendar, Pauschal: loadPackages, "Quellen-Status": loadHealth,
   };
   const errs = [];

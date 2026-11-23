@@ -186,6 +186,48 @@ def hotels_table(session, run: str | int | None = None) -> dict:
     return {"run_id": rid, "rows": rows}
 
 
+def guarantee_payload(session, cfg: Config) -> dict:
+    """Uebersicht fuer die Agoda-Preisgarantie: gebuchter Preis vs. beste anerkannte Plattform."""
+    from datetime import timedelta
+
+    from . import guarantee
+
+    booked = cfg.alerts.booked_hotel_price
+    out = {"active": guarantee.active(cfg), "booked": booked, "threshold": cfg.alerts.thresholds.hotel_total,
+           "platforms": cfg.alerts.guarantee_platforms,
+           "deadline": (cfg.trip.hotel_checkin - timedelta(days=1)).isoformat(),
+           "offers": [], "best": None, "gap": None, "run_id": None, "captured_at": None}
+    bf = cfg.trip.booked_flight
+    flight = bf.price_total if bf else None
+    out.update({
+        "booked_thb": cfg.alerts.booked_hotel_thb, "flight": flight, "persons": cfg.trip.persons,
+        "total": round(flight + booked, 2) if (flight and booked) else None,
+        "target_total": cfg.alerts.target_total, "saving": 0.0,
+    })
+    if out["total"]:
+        out["per_person"] = round(out["total"] / cfg.trip.persons, 2)
+        if cfg.alerts.target_total:
+            out["to_target"] = round(out["total"] - cfg.alerts.target_total, 2)   # >0: noch darueber
+    run = display_run(session)
+    if not (out["active"] and run):
+        return out
+    out["run_id"] = run.id
+    out["captured_at"] = run.started_at.isoformat()
+    for h in session.scalars(select(HotelOfferRow).where(HotelOfferRow.run_id == run.id)):
+        if not h.ok or not h.price_total or h.is_reference or not guarantee.is_eligible(h.source, out["platforms"]):
+            continue
+        total = (h.raw or {}).get("price_total_incl_fees_estimate") or h.price_total
+        out["offers"].append({"source": h.source.replace(" (Google)", ""), "total": round(total, 2),
+                              "per_person_night": round(total / cfg.trip.persons / max(cfg.trip.nights, 1), 2),
+                              "url": h.deep_link, "room_split": (h.raw or {}).get("room_split")})
+    out["offers"].sort(key=lambda o: o["total"])
+    if out["offers"]:
+        out["best"] = out["offers"][0]
+        out["gap"] = round(out["best"]["total"] - booked, 2)
+        out["saving"] = round(max(0.0, booked - out["best"]["total"]), 2)   # moegliche Erstattung
+    return out
+
+
 def packages_table(session, run: str | int | None = None) -> dict:
     rid = _run_id(session, run)
     if rid is None:
