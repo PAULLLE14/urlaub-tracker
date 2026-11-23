@@ -210,7 +210,7 @@
           <h3 class="text-xs font-semibold uppercase tracking-wider text-muted">AGODA-PREISGARANTIE · PREISVERGLEICH</h3>
           <span id="g-lead" class="text-xs font-medium text-lagoon tabular-nums"></span>
         </div>
-        <div id="g-scale" class="relative pt-12 pb-14 px-4 sm:px-8"></div>
+        <div id="g-scale" class="relative py-2"></div>
         <p id="g-note" class="text-xs sm:text-sm text-muted border-t border-hairline pt-4 tabular-nums"></p>
       </div>
 
@@ -384,9 +384,10 @@
       $('g-lead').textContent = best && saving === 0 ? `Dein Vorsprung: ${eur(best.total - g.booked)} unter ${best.source}` : '';
       const marks = []; if (g.threshold) marks.push({ v: g.threshold, l: 'Alarm', c: 'lagoon', up: true }); marks.push({ v: g.booked, l: 'dein Preis', c: 'qatar', up: false }); if (best) marks.push({ v: best.total, l: best.source, c: 'sandGold', up: true });
       const lo = Math.min(...marks.map((m) => m.v)) * 0.97, hi = Math.max(...marks.map((m) => m.v)) * 1.02, pos = (v) => (((v - lo) / (hi - lo)) * 100).toFixed(1);
-      $('g-scale').innerHTML = `<div class="relative h-2 rounded-full bg-alabaster border border-hairline"></div>` + marks.map((m) => `<div class="absolute -translate-x-1/2 flex flex-col items-center tabular-nums" style="left:${pos(m.v)}%;top:${m.up ? '0' : '0'}"><span class="text-[11px] font-semibold text-${m.c} whitespace-nowrap">${esc(m.l)}</span><span class="text-xs font-bold text-ink whitespace-nowrap">${eur0(m.v)}</span><div class="mt-1.5 w-3.5 h-3.5 rounded-full bg-${m.c} border-2 border-white shadow"></div></div>`).join('');
-      // Marker-Dot soll auf der Linie liegen: Linie nach unten setzen
-      $('g-scale').firstChild.style.marginTop = '2.6rem';
+      $('g-scale').innerHTML = '<div class="relative mx-4 sm:mx-8" style="height:100px"><div class="absolute left-0 right-0 rounded-full bg-alabaster border border-hairline" style="top:40px;height:8px"></div>' +
+        marks.map((m) => `<div class="absolute tabular-nums" style="left:${pos(m.v)}%;top:0;height:100px;width:0">
+          <div class="absolute w-3.5 h-3.5 rounded-full bg-${m.c} border-2 border-white shadow" style="left:-7px;top:37px"></div>
+          <div class="absolute -translate-x-1/2 text-center whitespace-nowrap" style="${m.up ? 'bottom:66px' : 'top:60px'}"><div class="text-[11px] font-semibold text-${m.c}">${esc(m.l)}</div><div class="text-xs font-bold text-ink">${eur0(m.v)}</div></div></div>`).join('') + '</div>';
       const dl = Math.max(0, Math.ceil((new Date(g.deadline + 'T23:59:00') - now) / 86400000));
       $('g-note').innerHTML = `Antrag möglich bis <strong class="text-ink">${esc(fmtDay(g.deadline, { day: '2-digit', month: 'long', year: 'numeric' }))}, 23:59 Uhr</strong> (Ortszeit Hotel) – noch <strong class="text-lagoon">${dl} Tage</strong>. Mail-Alarm ab <strong class="text-ink">${eur(g.threshold)}</strong> (160 € unter deinem Preis).`;
 
