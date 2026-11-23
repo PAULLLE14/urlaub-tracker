@@ -185,7 +185,11 @@ def build_digest(session, cfg: Config, alert: dict | None = None) -> tuple[str, 
         rest += f" Einordnung: {trend['label']}."
     if alert:
         lead = "Preisalarm:"
-        rest = (f"Der Hotelpreis liegt {eur(alert['limit'] - alert['price'])} unter deiner "
+        booked = cfg.alerts.booked_hotel_price
+        rest = (f"Das sind {eur(booked - alert['price'])} weniger als dein gebuchter Preis von {eur(booked)} "
+                f"- Preisgarantie bei Agoda prüfen (Zimmertyp, Stornobedingungen und Frist beachten)."
+                if booked else
+                f"Der Hotelpreis liegt {eur(alert['limit'] - alert['price'])} unter deiner "
                 f"Schwelle von {eur(alert['limit'])}.")
     mood = f"{lead} {rest}"
 

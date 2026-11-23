@@ -293,8 +293,10 @@ trend:
 
 # --- Benachrichtigungen ------------------------------------------------
 alerts:
-  enabled: false              # Hotel bei Agoda gebucht (23.11.26): keine Preisalarm-Mails, keine 9-Uhr-Tagesmail
+  enabled: true               # nur Preisgarantie-Alarm: Hotel >= 160 EUR unter dem Agoda-Preis
+  booked_hotel_price: 8977.68   # Agoda-Buchung 23.11.26 (334.358,31 THB), nicht rueckerstattbar
   daily_digest:
+    enabled: false              # keine 9-Uhr-Tagesmail mehr
     dashboard_url: http://204.168.234.248:8080   # "Zum Tracker"-Button in der Tagesmail
   # Absolute Schwellen (Gesamtpreis fuer 8 Pax, in trip.currency).
   # Unterschreitung -> genau eine Mail/Push pro neuer Bestmarke.
@@ -302,7 +304,7 @@ alerts:
   # paar echten Durchlaeufen anhand des Preisverlaufs im Dashboard nachjustieren.
   thresholds:
     flight_total: 8000          # Round-Trip/Multi-City, 8 Pax
-    hotel_total: 8816           # Ziel: Flug + Hotel unter 16.000 EUR (16000 - 7183,36 Flug)
+    hotel_total: 8817           # Agoda-Preis 8977,68 minus 160 = Gesamt unter 16.000 EUR (Preisgarantie lohnt sich)
     separate_total: 16000       # Flug + Hotel getrennt gebucht
     package_total: 20000        # guenstigste Pauschalreise (noch keine Daten)
   # Nicht oefter als alle X Stunden dieselbe Kategorie alarmieren.

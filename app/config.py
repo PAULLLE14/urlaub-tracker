@@ -376,6 +376,7 @@ class DigestCfg(BaseModel):
 
 class AlertsCfg(BaseModel):
     enabled: bool = True
+    booked_hotel_price: float | None = None   # gebuchter Hotelpreis (Preisgarantie-Wächter)
     daily_digest: DigestCfg = DigestCfg()
     thresholds: AlertThresholds = AlertThresholds()
     cooldown_hours: float = 12
