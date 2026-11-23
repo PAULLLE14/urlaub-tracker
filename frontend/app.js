@@ -96,9 +96,9 @@ function renderCountdown(s) {
   box.hidden = false;
   if (days > 0) {
     $("#countdownNum").textContent = days;
-    $("#countdownLbl").textContent = days === 1 ? "Tag bis Thailand 🌴" : "Tage bis Thailand 🌴";
+    $("#countdownLbl").textContent = days === 1 ? "Tag bis Thailand" : "Tage bis Thailand";
   } else if (days === 0) {
-    $("#countdownNum").textContent = "🏝";
+    $("#countdownNum").textContent = "–";
     $("#countdownLbl").textContent = "heute geht's los!";
   } else {
     box.hidden = true; // Reise ist vorbei - Countdown nicht mehr sinnvoll
@@ -1070,7 +1070,7 @@ async function loadGuarantee() {
 
   box.innerHTML = `
   <div class="flyer-hero" style="background-image:linear-gradient(180deg,rgba(14,40,38,.15) 0%,rgba(14,40,38,.78) 100%),url('/img/santiburi.jpg')">
-    <div class="fh-top"><span class="fh-chip">Reise bestätigt ✓</span><span class="fh-count">${esc(Math.max(0, Math.ceil((new Date(g.checkin + "T00:00:00") - new Date()) / 86400000)))} Tage bis Thailand 🌴</span></div>
+    <div class="fh-top"><span class="fh-chip">Reise bestätigt</span><span class="fh-count">${esc(Math.max(0, Math.ceil((new Date(g.checkin + "T00:00:00") - new Date()) / 86400000)))} Tage bis Thailand</span></div>
     <div class="fh-body">
       <h1 class="fh-title sr">${esc(g.hotel_name)}</h1>
       <div class="fh-meta">${fmtDay(g.checkin, { day: "2-digit", month: "long" })} – ${fmtDay(g.checkout, { day: "2-digit", month: "long", year: "numeric" })} · ${g.nights} Nächte · ${g.persons} Personen · 3 Villen</div>
@@ -1079,17 +1079,17 @@ async function loadGuarantee() {
 
 
   <div class="facts">
-    <div class="fact"><span class="fi">🕒</span><div><div class="fl">Jetzt auf Koh Samui</div><div class="fv" id="factLocalTime">–</div></div></div>
-    <div class="fact"><span class="fi">🌍</span><div><div class="fl">Zeitverschiebung im Mai</div><div class="fv">+5 Stunden</div></div></div>
-    <div class="fact"><span class="fi">🛫</span><div><div class="fl">Abflug in</div><div class="fv">${f.outbound_date ? Math.max(0, Math.ceil((new Date(f.outbound_date + "T00:00:00") - new Date()) / 86400000)) + " Tagen" : "–"}</div></div></div>
-    <div class="fact"><span class="fi">🌡</span><div><div class="fl">Mai auf Samui (typisch)</div><div class="fv">28–32 °C · Meer 29 °C</div></div></div>
-    <div class="fact"><span class="fi">🌙</span><div><div class="fl">Reisezeit hin / zurück</div><div class="fv">${esc(f.total_out || "–")} / ${esc(f.total_back || "–")}</div></div></div>
-    <div class="fact"><span class="fi">👥</span><div><div class="fl">Pro Person gesamt</div><div class="fv">${money2(g.per_person)}</div></div></div>
+    <div class="fact"><div><div class="fl">Jetzt auf Koh Samui</div><div class="fv" id="factLocalTime">–</div></div></div>
+    <div class="fact"><div><div class="fl">Zeitverschiebung im Mai</div><div class="fv">+5 Stunden</div></div></div>
+    <div class="fact"><div><div class="fl">Abflug in</div><div class="fv">${f.outbound_date ? Math.max(0, Math.ceil((new Date(f.outbound_date + "T00:00:00") - new Date()) / 86400000)) + " Tagen" : "–"}</div></div></div>
+    <div class="fact"><div><div class="fl">Mai auf Samui (typisch)</div><div class="fv">28–32 °C · Meer 29 °C</div></div></div>
+    <div class="fact"><div><div class="fl">Reisezeit hin / zurück</div><div class="fv">${esc(f.total_out || "–")} / ${esc(f.total_back || "–")}</div></div></div>
+    <div class="fact"><div><div class="fl">Pro Person gesamt</div><div class="fv">${money2(g.per_person)}</div></div></div>
   </div>
 
   <div class="flyer-cards">
     <article class="ticket flight-wide">
-      <div class="ticket-head"><span>✈ Flug · Qatar Airways</span><span class="tag ok">gebucht</span></div>
+      <div class="ticket-head"><span>Flug · Qatar Airways</span><span class="tag ok">gebucht</span></div>
       <div class="legs-grid">
         ${["out", "back"].map((dir) => {
           const ls = legs.filter((l) => l.direction === dir);
@@ -1099,10 +1099,10 @@ async function loadGuarantee() {
           const rows = ls.map((l, k) => {
             const next = ls[k + 1];
             const gap = next ? mins(next.date, next.dep_time) - mins(l.arr_date || l.date, l.arr_time) : null;
-            const gapTxt = gap != null && gap > 0 ? `<div class="layover">⏱ Umstieg in ${esc(cities[l.arr] || l.arr)} · ${Math.floor(gap / 60)} h ${String(gap % 60).padStart(2, "0")} min</div>` : "";
+            const gapTxt = gap != null && gap > 0 ? `<div class="layover">Umstieg ${esc(cities[l.arr] || l.arr)} · ${Math.floor(gap / 60)} h ${String(gap % 60).padStart(2, "0")} min</div>` : "";
             return `<div class="leg">
               <div class="leg-t"><b>${esc(l.dep_time)}</b><span>${esc(dayOf(l.date))}</span></div>
-              <div class="leg-r"><div class="leg-c"><b>${esc(l.dep)}</b><i class="leg-line"><em>✈</em></i><b>${esc(l.arr)}</b></div>
+              <div class="leg-r"><div class="leg-c"><b>${esc(l.dep)}</b><i class="leg-line"><em></em></i><b>${esc(l.arr)}</b></div>
                 <div class="leg-m">${esc(l.flight)} · ${esc(l.duration)} · ${esc(l.aircraft)}${l.operated_by ? " · " + esc(l.operated_by) : ""}${l.terminal ? " · " + esc(l.terminal) : ""}</div></div>
               <div class="leg-t right"><b>${esc(l.arr_time)}</b><span>${esc(dayOf(l.arr_date || l.date))}</span></div>
             </div>${gapTxt}`;
@@ -1115,7 +1115,7 @@ async function loadGuarantee() {
     </article>
 
     <article class="ticket hotel">
-      <div class="ticket-head"><span>🏝 Hotel</span><span class="tag ok">gebucht · ${esc(g.provider)}</span></div>
+      <div class="ticket-head"><span>Hotel</span><span class="tag ok">gebucht · ${esc(g.provider)}</span></div>
       <div class="hotel-name">${esc(g.hotel_name)}</div>
       <div class="hotel-sub">3 × Deluxe Garten Villa · Frühstück inklusive · WLAN & Parkplatz</div>
       <div class="ticket-rows">
@@ -1142,7 +1142,7 @@ async function loadGuarantee() {
   </div>
 
   <div class="flyer-gauge">
-    <div class="fg-title">🛡 Agoda-Preisgarantie · Preisvergleich</div>
+    <div class="fg-title">Agoda-Preisgarantie · Preisvergleich</div>
     <div class="scale"><div class="scale-line"></div>${scale}</div>
     <div class="fg-note">Antrag möglich bis <b>${esc(fmtDay(g.deadline, { day: "2-digit", month: "long", year: "numeric" }))}, 23:59 Uhr</b> (Ortszeit Hotel) – noch <b>${days} Tage</b>. Mail-Alarm ab ${g.threshold ? money2(g.threshold) : "–"} (160 € unter deinem Preis).</div>
   </div>
