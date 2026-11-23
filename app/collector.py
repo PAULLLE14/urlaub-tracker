@@ -235,6 +235,12 @@ def run_check(trigger: str = "manual") -> dict:
 
     # 4) Vergleich ----------------------------------------------------
     verdict: Verdict = build_verdict(flights, hotels, packages, cfg)
+    bh = cfg.trip.booked_hotel
+    if bh:   # Hotel steht fest: Gesamtbetrag = gebuchter Flug + gebuchtes Hotel
+        verdict.hotel_total = bh.price_total
+        if verdict.flight_total:
+            verdict.separate_total = round(verdict.flight_total + bh.price_total, 2)
+        verdict.notes.append(f"Hotel gebucht: {bh.provider}, {bh.price_total:.2f} EUR")
 
     # 5) Persistenz -------------------------------------------------
     id_map: dict[int, FlightOfferRow] = {}

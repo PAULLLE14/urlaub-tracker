@@ -91,6 +91,16 @@ trip:
     return_date: "2027-05-28"
     note: "Gebucht - fester Preis fuer alle 8 Personen"
 
+  # Hotel gebucht (23.11.26) bei Agoda: 3 x Deluxe Garten Villa, 8 Personen, 15.-28.05.2027,
+  # nicht rueckerstattbar, Preis nach Sofortrabatt (Gutschein 1.612,65 EUR).
+  booked_hotel:
+    price_total: 8977.68
+    price_local: 334358.31
+    local_currency: THB
+    provider: Agoda
+    booked_on: "2026-11-23"
+    note: "3 x Deluxe Garten Villa, nicht rueckerstattbar, Fruehstueck inklusive"
+
   # Manuelle Referenzpreise (Expedia-App 7.722 und Stayforlong 8.167, beide vom
   # 26.09.26) am 27.10.26 entfernt: Preise sind seitdem um ~25-30% gestiegen, die
   # Deals gab es nicht mehr (Stayforlong heute 10.179, Expedia Google 11.184) -

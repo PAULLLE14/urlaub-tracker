@@ -22,6 +22,18 @@ CONFIG_PATH = Path(os.environ.get("TRACKER_CONFIG", BASE_DIR / "config.yaml"))
 # --------------------------------------------------------------------------- #
 # YAML-Modelle
 # --------------------------------------------------------------------------- #
+class BookedHotel(BaseModel):
+    """Bereits gebuchtes Hotel (Agoda, 23.11.26). Der Tracker rechnet dann mit diesem Preis
+    (Zusammenfassung, Gesamtbetrag) und beobachtet nur noch fuer die Preisgarantie."""
+
+    price_total: float                    # EUR, Endpreis inkl. Steuern/Gebuehren
+    price_local: float | None = None      # Betrag in Hotel-Waehrung laut Buchung
+    local_currency: str = "THB"
+    provider: str = "Agoda"
+    booked_on: date | None = None
+    note: str = ""
+
+
 class BookedFlight(BaseModel):
     """Bereits gebuchter Flug (Ticket gekauft): ersetzt die komplette Flugsuche,
     der Tracker konzentriert sich dann auf Hotel/Pauschal. Der Hotelzeitraum
@@ -104,6 +116,7 @@ class TripCfg(BaseModel):
     # in Vergleich/Trend/Alarm einfliessen. Automatische Quellen sind bei einem
     # so speziellen Setup (3 Villen, 8 Pers., 14 Naechte, Mai 2027) unzuverlaessig.
     booked_flight: BookedFlight | None = None
+    booked_hotel: BookedHotel | None = None
     reference_offers: list[ReferenceOffer] = []
     # Nutzer-Fund 16.09.26: Mitarbeiter-Rabattportal (Corporate Benefits o.ae.)
     # zeigt zusaetzliche Rabatte auf einzelne Anbieter (z.B. lastminute.com

@@ -12,7 +12,7 @@ from .config import Config
 
 
 def active(cfg: Config) -> bool:
-    return bool(cfg.alerts.guarantee_platforms and cfg.alerts.booked_hotel_price)
+    return bool(cfg.alerts.guarantee_platforms and (cfg.trip.booked_hotel or cfg.alerts.booked_hotel_price))
 
 
 def is_eligible(source: str, platforms: list[str]) -> bool:

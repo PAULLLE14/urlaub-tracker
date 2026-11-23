@@ -192,7 +192,8 @@ def guarantee_payload(session, cfg: Config) -> dict:
 
     from . import guarantee
 
-    booked = cfg.alerts.booked_hotel_price
+    bh = cfg.trip.booked_hotel
+    booked = bh.price_total if bh else cfg.alerts.booked_hotel_price
     out = {"active": guarantee.active(cfg), "booked": booked, "threshold": cfg.alerts.thresholds.hotel_total,
            "platforms": cfg.alerts.guarantee_platforms,
            "deadline": (cfg.trip.hotel_checkin - timedelta(days=1)).isoformat(),
@@ -200,7 +201,7 @@ def guarantee_payload(session, cfg: Config) -> dict:
     bf = cfg.trip.booked_flight
     flight = bf.price_total if bf else None
     out.update({
-        "booked_thb": cfg.alerts.booked_hotel_thb, "flight": flight, "persons": cfg.trip.persons,
+        "booked_thb": (bh.price_local if bh else None) or cfg.alerts.booked_hotel_thb, "flight": flight, "persons": cfg.trip.persons,
         "total": round(flight + booked, 2) if (flight and booked) else None,
         "target_total": cfg.alerts.target_total, "saving": 0.0,
     })
