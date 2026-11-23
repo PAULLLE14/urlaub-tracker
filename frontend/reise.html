@@ -38,6 +38,11 @@
     .hero .text { position: absolute; left: var(--pad); bottom: 11vh; max-width: 760px; }
     .hero h1 { font-size: clamp(34px, 5.4vw, 68px); }
     .hero .meta { margin-top: 14px; font-size: clamp(14px, 1.3vw, 17px); opacity: .92; }
+    .count { position: absolute; right: var(--pad); top: 50%; transform: translateY(-62%); text-align: right; z-index: 2; }
+    .count .big { font-size: clamp(96px, 17vw, 260px); font-weight: 200; line-height: .85; letter-spacing: -0.04em; }
+    .count .sub { margin-top: 14px; font-size: clamp(13px, 1.3vw, 18px); font-weight: 400; opacity: .95; }
+    .count .sub2 { margin-top: 4px; font-size: 12px; opacity: .75; letter-spacing: .04em; }
+    @media (max-width: 800px) { .count { top: 96px; transform: none; right: auto; left: var(--pad); text-align: left; } .count .big { font-size: 22vw; } }
     .hero dl { position: absolute; right: var(--pad); bottom: 11vh; display: grid; grid-template-columns: auto auto; gap: 6px 28px; font-size: 13px; }
     .hero dt { opacity: .75; } .hero dd { font-weight: 500; text-align: right; }
     .hero .hint { position: absolute; left: var(--pad); bottom: 3.5vh; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
@@ -112,6 +117,7 @@
     <section id="hero" class="photo hero">
       <div class="img" id="hero-img"></div><div class="veil"></div>
       <div class="text"><p class="label" style="color:rgba(255,255,255,.8)">Mae Nam Beach · Thailand</p><h1 id="hero-title" style="margin-top:12px">Santiburi Koh Samui</h1><p class="meta" id="hero-meta"></p></div>
+      <div class="count" id="hero-count"></div>
       <dl id="hero-spec"></dl><span class="hint">Scrollen</span><span class="credit" data-file="maenam-bay.jpg"></span>
     </section>
 
@@ -207,7 +213,9 @@
       $('hero-meta').textContent = `${fmtDay(g.checkin, { day: 'numeric', month: 'long' })} – ${fmtDay(g.checkout, { day: 'numeric', month: 'long', year: 'numeric' })} · ${g.nights} Nächte · ${g.persons} Personen · 3 Villen`;
       const off = (tz) => new Date(new Date(g.checkin + 'T12:00:00Z').toLocaleString('en-US', { timeZone: tz }));
       const diff = (off('Asia/Bangkok') - off('Europe/Berlin')) / 3600000;
-      $('hero-spec').innerHTML = [['Abflug in', f.outbound_date ? days(f.outbound_date) + ' Tagen' : '–'], ['Zeitverschiebung', (diff >= 0 ? '+' : '') + diff + ' Stunden'], ['Ortszeit Samui', '<span id="clock">–</span>'], ['Gesamt', eur(g.total)], ['Pro Person', eur(g.per_person)]].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
+      if (f.outbound_date) { const dep = new Date(f.outbound_date + 'T' + (f.outbound_time || '12:00') + ':00+02:00'); const left = Math.max(0, dep - now), d = Math.floor(left / 86400000), h = Math.floor((left % 86400000) / 3600000);
+        $('hero-count').innerHTML = `<div class="big">${d}</div><div class="sub">${d === 1 ? 'Tag' : 'Tage'} bis zum Abflug</div><div class="sub2">${esc(fmtDay(f.outbound_date, { weekday: 'long', day: 'numeric', month: 'long' }))}${f.outbound_time ? ', ' + esc(f.outbound_time) + ' Uhr ab Frankfurt' : ''} · noch ${h} Std.</div>`; }
+      $('hero-spec').innerHTML = [['Zeitverschiebung', (diff >= 0 ? '+' : '') + diff + ' Stunden'], ['Ortszeit Samui', '<span id="clock">–</span>'], ['Gesamt', eur(g.total)], ['Pro Person', eur(g.per_person)]].map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('');
       tick();
       $('flug-lead').textContent = `${legs.length || 6} Flüge mit Qatar Airways und Bangkok Airways, Economy, ${g.persons} Passagiere. Hinflug ${fmtDay(f.outbound_date, { weekday: 'long', day: 'numeric', month: 'long' })}, Rückflug ${fmtDay(f.return_date, { weekday: 'long', day: 'numeric', month: 'long' })}.`;
       const types = [...new Set(legs.map((l) => TYPE_OF(l.aircraft)))];
