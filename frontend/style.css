@@ -372,3 +372,8 @@ body.guarantee-mode #guaranteeSection > h2 { display: none; }
 .sr { position: absolute; left: -9999px; }
 .flyer-hero { background-position: center 30%; }
 .fh-meta { font-size: 17px; font-weight: 600; text-shadow: 0 1px 8px rgba(0,0,0,.45); }
+
+/* freundlicherer Ton fuer den Gesamtbetrag (kein Alarm-Rot) */
+.ft-main { background: linear-gradient(135deg, var(--teal-soft), #f4faf8); border-color: var(--teal) !important; }
+.ft-main .ft-value { color: #17594f; }
+.bar span { background: linear-gradient(90deg, #5fb3a5, var(--teal)); }

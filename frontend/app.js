@@ -1122,8 +1122,8 @@ async function loadGuarantee() {
 
   <div class="flyer-total">
     <div class="ft-main"><div class="ft-label">Gesamtbetrag Flug + Hotel</div><div class="ft-value">${money2(g.total)}</div>
-      <div class="ft-sub">${money2(g.per_person)} pro Person${toTarget != null ? ` · ${toTarget > 0 ? "<b>" + money2(toTarget) + "</b> über" : "<b>" + money2(Math.abs(toTarget)) + "</b> unter"} dem Ziel (${money(tgt)})` : ""}</div>
-      ${pct ? `<div class="bar"><span style="width:${pct}%"></span></div><div class="bar-cap">${pct} % vom Ziel ${money(tgt)} erreicht</div>` : ""}
+      <div class="ft-sub">${money2(g.per_person)} pro Person${toTarget != null ? ` · ${toTarget > 0 ? "nur noch <b>" + money2(toTarget) + "</b> bis zum Ziel" : "<b>" + money2(Math.abs(toTarget)) + "</b> unter dem Ziel"} (${money(tgt)})` : ""}</div>
+      ${pct ? `<div class="bar"><span style="width:${pct}%"></span></div><div class="bar-cap">${pct} % des Ziels ${money(tgt)} – fast geschafft</div>` : ""}
     </div>
     <div class="ft-save ${saving > 0 ? "good" : ""}">
       <div class="ft-label">Ersparnis durch Preisgarantie</div>
