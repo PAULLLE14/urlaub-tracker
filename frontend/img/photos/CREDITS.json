@@ -52,5 +52,23 @@
     "license_url": "https://creativecommons.org/licenses/by/2.0",
     "source": "https://commons.wikimedia.org/wiki/File:Maenam_Beach,_Koh_Samui_(48107481886).jpg",
     "bytes": 468146
+  },
+  {
+    "file": "hamad-orchard.jpg",
+    "title": "The Orchard - Hamad International Airport.jpg",
+    "artist": "Deerpeter",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+    "source": "https://commons.wikimedia.org/wiki/File:The_Orchard_-_Hamad_International_Airport.jpg",
+    "bytes": 896800
+  },
+  {
+    "file": "samui-airport.jpg",
+    "title": "Samui Airport, 2015 febr. - panoramio.jpg",
+    "artist": "Roma Neus",
+    "license": "CC BY 3.0",
+    "license_url": "https://creativecommons.org/licenses/by/3.0",
+    "source": "https://commons.wikimedia.org/wiki/File:Samui_Airport,_2015_febr._-_panoramio.jpg",
+    "bytes": 666200
   }
 ]
