@@ -50,9 +50,6 @@
     <div class="absolute inset-0" style="background:linear-gradient(180deg,#dbeeff 0%,#eef6fb 55%,#FAF8F5 100%)"></div>
     <div id="resort-layer" class="absolute inset-0 opacity-0" style="background:url('/img/santiburi.jpg') center/cover no-repeat"></div>
     <div id="cloud-layer" class="absolute inset-0"></div>
-    <div id="plane-layer" class="absolute" style="top:6vh;left:0;width:min(46vw,560px);will-change:transform">
-      <div id="plane-inner"></div>
-    </div>
     <canvas id="three-canvas" class="hidden absolute inset-0 w-full h-full pointer-events-auto"></canvas>
     <div class="pointer-events-none absolute inset-0 sky-veil"></div>
   </div>
@@ -107,8 +104,9 @@
             </a>
           </div>
         </div>
-        <div class="lg:col-span-5 flex flex-col justify-end h-full min-h-[200px] lg:min-h-[340px]">
-          <div class="pointer-events-auto self-end editorial-card px-4 py-3 flex items-center gap-3 text-xs">
+        <div class="lg:col-span-5 relative flex flex-col justify-end h-full min-h-[240px] lg:min-h-[340px]">
+          <div id="plane-layer" class="absolute left-0 right-0 pointer-events-none" style="top:4%;will-change:transform"><div id="plane-inner"></div></div>
+          <div class="pointer-events-auto self-end editorial-card px-4 py-3 flex items-center gap-3 text-xs relative">
             <div class="w-8 h-8 rounded-full bg-qatarSoft text-qatar flex items-center justify-center shrink-0">
               <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>
             </div>
@@ -139,7 +137,10 @@
           </div>
           <div id="fleet-buttons" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5"></div>
         </div>
-        <div class="mt-6 pt-5 border-t border-hairline"><div id="route-svg" class="w-full"></div></div>
+        <div class="mt-6 pt-5 border-t border-hairline grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          <div class="md:col-span-5"><div id="plane-preview" class="max-w-md mx-auto"></div><div id="plane-preview-label" class="mt-2 text-center text-xs font-semibold text-muted"></div></div>
+          <div class="md:col-span-7"><div id="route-svg" class="w-full"></div></div>
+        </div>
       </div>
       <div class="pointer-events-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div id="legs-out" class="editorial-card-solid p-6 sm:p-7"></div>
@@ -446,15 +447,20 @@
         <line x1="150" y1="84" x2="560" y2="84" stroke="#64748B" stroke-width="5" stroke-dasharray="2 9" stroke-linecap="round" opacity=".7"/>
       </svg>`;
     }
-    function setPlane(type) {
-      currentType = type;
-      const layer = $('plane-inner'); const base = '/img/planes/' + PLANE_FILES[type];
+    function planeInto(layer, type) {
+      const base = '/img/planes/' + PLANE_FILES[type];
       layer.innerHTML = '';
       const img = new Image(); img.alt = TYPE_LABEL[type]; img.className = 'w-full h-auto'; img.style.filter = 'drop-shadow(0 18px 18px rgba(26,32,44,.2))';
       img.onerror = () => { if (!img.dataset.png) { img.dataset.png = '1'; img.src = base + '.png'; } else { layer.innerHTML = planeSvg(type); } };
       img.src = base + '.webp';
       layer.appendChild(img);
-      $('hud-scene-label').textContent = TYPE_LABEL[type] + (type === 'A319' ? ' · Bangkok Airways' : ' · Qatar Airways');
+    }
+    function setPlane(type) {
+      currentType = type;
+      planeInto($('plane-inner'), type);
+      planeInto($('plane-preview'), type);
+      const lab = TYPE_LABEL[type] + (type === 'A319' ? ' · Bangkok Airways' : ' · Qatar Airways');
+      $('hud-scene-label').textContent = lab; $('plane-preview-label').textContent = lab;
       if (window.__glb) window.__glb.showAircraft(type);
     }
     window.selectAircraft = function (type) {
@@ -474,13 +480,14 @@
     });
 
     function initParallax() {
-      if (!window.gsap || !window.ScrollTrigger || reduceMotion) { $('plane-layer').style.opacity = 1; return; }
+      if (!window.gsap || !window.ScrollTrigger || reduceMotion) return;
       gsap.registerPlugin(ScrollTrigger);
       const hotelTop = () => $('hotel-section').offsetTop - window.innerHeight * 0.4;
-      // Flugzeug: Fly-by von links nach rechts mit Kurvenlage, danach ausblenden
-      gsap.fromTo('#plane-layer', { x: '-30vw', y: '4vh', rotate: -3, scale: .92, opacity: 1 },
-        { x: '58vw', y: '20vh', rotate: 5, scale: 1.12, ease: 'none', scrollTrigger: { trigger: 'body', start: 0, end: () => hotelTop(), scrub: .8 } });
-      gsap.to('#plane-layer', { opacity: 0, scrollTrigger: { trigger: '#hotel-section', start: 'top 85%', end: 'top 45%', scrub: true } });
+      // Flugzeug im Hero: gleitet beim Scrollen nach rechts, neigt sich in die Kurve und blendet am Ende des Heros aus
+      gsap.fromTo('#plane-layer', { x: -30, y: 0, rotate: -4, scale: .97, opacity: 1 },
+        { x: 110, y: 70, rotate: 6, scale: 1.08, ease: 'none', scrollTrigger: { trigger: '#hero-section', start: 'top top', end: 'bottom 20%', scrub: .8 } });
+      gsap.to('#plane-layer', { opacity: 0, ease: 'none', scrollTrigger: { trigger: '#hero-section', start: 'bottom 60%', end: 'bottom 15%', scrub: true } });
+      gsap.fromTo('#plane-preview', { x: -40, rotate: -2 }, { x: 40, rotate: 2, ease: 'none', scrollTrigger: { trigger: '#flight-section', start: 'top bottom', end: 'bottom top', scrub: true } });
       // Wolken
       const speed = { a: 22, b: 38, c: 56 };
       clouds.forEach((c) => gsap.to(c, { x: () => '-' + speed[c.dataset.layer] + 'vw', ease: 'none', scrollTrigger: { trigger: 'body', start: 0, end: 'max', scrub: true } }));
